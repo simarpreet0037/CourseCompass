@@ -8,7 +8,3 @@ class CourseForm(forms.Form):
         choices=[(100, "100"), (200, "200"), (300, "300"), (400, "400")],
         label='Course Level'
     )
-    prerequisites = forms.CharField(
-        label='Prerequisites (comma-separated codes)',
-        required=False
-    )
