@@ -19,8 +19,9 @@ from django.urls import path, include
 from django.shortcuts import redirect
 
 urlpatterns = [
-   path('', lambda request: redirect('add_course')),  # Redirect root path
+   path('', lambda request: redirect('chat/')),  # Redirect root path
 
     path('admin/', admin.site.urls),
     path('courses/', include('courses.urls')),
+    path('chat/', include('bot.urls')),
 ]

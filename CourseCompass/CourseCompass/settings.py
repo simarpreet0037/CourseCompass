@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'courses',  # Custom app for courses
+    'bot',      # Custom app for chatbot
 ]
 
 MIDDLEWARE = [
@@ -121,3 +122,12 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+import environ
+import os
+
+#BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Initialize
+env = environ.Env()
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))

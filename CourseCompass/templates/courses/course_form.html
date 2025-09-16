@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{% if edit_mode %}Edit{% else %}Add{% endif %} Course</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .group { margin-bottom: 10px; }
+        label { margin-right: 5px; }
+        input[type="text"], textarea { width: 400px; }
+        textarea { resize: vertical; }
+        button.remove-btn {
+            margin-left: 10px;
+            background: #d9534f;
+            color: white;
+            border: none;
+            padding: 3px 8px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>{% if edit_mode %}Edit{% else %}Add{% endif %} a Course</h1>
+
+    <form method="post">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        {{ form.code.label }}: {{ form.code.errors }} {{ form.code }}<br>
+        {{ form.title.label }}: {{ form.title.errors }} {{ form.title }}<br>
+        {{ form.credits.label }}: {{ form.credits.errors }} {{ form.credits }}<br>
+        {{ form.level.label }}: {{ form.level.errors }} {{ form.level }}<br>
+        {{ form.description.label }}: {{ form.description.errors }} {{ form.description }}<br><br>
+
+        <h3>Required Prerequisite Groups</h3>
+        <div id="required-groups">
+            {% for group in required_groups %}
+            <div class="group">
+                <label>Group Type:</label>
+                <select name="required_group_type_{{ forloop.counter0 }}">
+                    <option value="AND" {% if group.type == "AND" %}selected{% endif %}>AND</option>
+                    <option value="OR" {% if group.type == "OR" %}selected{% endif %}>OR</option>
+                </select>
+                <input type="text" name="required_courses_{{ forloop.counter0 }}" value="{{ group.courses|join:', ' }}">
+                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
+            </div>
+            {% empty %}
+            <div class="group">
+                <label>Group Type:</label>
+                <select name="required_group_type_0">
+                    <option value="AND">AND</option>
+                    <option value="OR">OR</option>
+                </select>
+                <input type="text" name="required_courses_0" placeholder="e.g., MATH 110, MATH 105">
+                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="button" onclick="addRequiredGroup()">+ Add Required Group</button>
+
+        <h3>Recommended Prerequisite Groups</h3>
+        <div id="recommended-groups">
+            {% for group in recommended_groups %}
+            <div class="group">
+                <label>Group Type:</label>
+                <select name="recommended_group_type_{{ forloop.counter0 }}">
+                    <option value="AND" {% if group.type == "AND" %}selected{% endif %}>AND</option>
+                    <option value="OR" {% if group.type == "OR" %}selected{% endif %}>OR</option>
+                </select>
+                <input type="text" name="recommended_courses_{{ forloop.counter0 }}" value="{{ group.courses|join:', ' }}">
+                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
+            </div>
+            {% empty %}
+            <div class="group">
+                <label>Group Type:</label>
+                <select name="recommended_group_type_0">
+                    <option value="AND">AND</option>
+                    <option value="OR">OR</option>
+                </select>
+                <input type="text" name="recommended_courses_0" placeholder="e.g., STAT 160, STAT 200">
+                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="button" onclick="addRecommendedGroup()">+ Add Recommended Group</button>
+
+        <h3>Custom Prerequisite Groups</h3>
+        <div id="custom-groups">
+            {% for group in custom_groups %}
+            <div class="group">
+                <label>Custom Type:</label>
+                <input type="text" name="custom_group_type_{{ forloop.counter0 }}" value="{{ group.type }}" placeholder="e.g., Corequisite">
+                <input type="text" name="custom_courses_{{ forloop.counter0 }}" value="{{ group.courses|join:', ' }}" placeholder="e.g., CS200, CS210">
+                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
+            </div>
+            {% empty %}
+            <div class="group">
+                <label>Custom Type:</label>
+                <input type="text" name="custom_group_type_0" placeholder="e.g., Corequisite">
+                <input type="text" name="custom_courses_0" placeholder="e.g., CS200, CS210">
+                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="button" onclick="addCustomGroup()">+ Add Custom Group</button>
+
+        <br><br>
+        <button type="submit">{% if edit_mode %}Update{% else %}Add{% endif %} Course</button>
+    </form>
+
+    <script>
+        let reqIndex = {{ required_groups|length|default:0 }};
+        let recIndex = {{ recommended_groups|length|default:0 }};
+        let customIndex = {{ custom_groups|length|default:0 }};
+
+        function removeGroup(button) {
+            button.closest('.group').remove();
+        }
+
+        function addRequiredGroup() {
+            const container = document.getElementById("required-groups");
+            const div = document.createElement("div");
+            div.className = "group";
+            div.innerHTML = `
+                <label>Group Type:</label>
+                <select name="required_group_type_${reqIndex}">
+                    <option value="AND">AND</option>
+                    <option value="OR">OR</option>
+                </select>
+                <input type="text" name="required_courses_${reqIndex}" placeholder="e.g., MATH 110, MATH 105">
+                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
+            `;
+            container.appendChild(div);
+            reqIndex++;
+        }
+
+        function addRecommendedGroup() {
+            const container = document.getElementById("recommended-groups");
+            const div = document.createElement("div");
+            div.className = "group";
+            div.innerHTML = `
+                <label>Group Type:</label>
+                <select name="recommended_group_type_${recIndex}">
+                    <option value="AND">AND</option>
+                    <option value="OR">OR</option>
+                </select>
+                <input type="text" name="recommended_courses_${recIndex}" placeholder="e.g., STAT 160, STAT 200">
+                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
+            `;
+            container.appendChild(div);
+            recIndex++;
+        }
+
+        function addCustomGroup() {
+            const container = document.getElementById("custom-groups");
+            const div = document.createElement("div");
+            div.className = "group";
+            div.innerHTML = `
+                <label>Custom Type:</label>
+                <input type="text" name="custom_group_type_${customIndex}" placeholder="e.g., Corequisite">
+                <input type="text" name="custom_courses_${customIndex}" placeholder="e.g., CS200, CS210">
+                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
+            `;
+            container.appendChild(div);
+            customIndex++;
+        }
+    </script>
+</body>
+</html>
