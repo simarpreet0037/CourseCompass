@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-nq&ndx&2x0s(1^7(u$2@&sw)!#suqejkdv6@6399^(y93ip0p7
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['34.227.86.112']
 
 
 # Application definition
@@ -131,3 +131,5 @@ import os
 # Initialize
 env = environ.Env()
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
