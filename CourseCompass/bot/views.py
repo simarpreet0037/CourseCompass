@@ -1,37 +1,42 @@
 from django.shortcuts import render
 from django.http import HttpResponse
 from django.views.decorators.http import require_POST
+from django.utils.safestring import mark_safe
 from .agent import advisor_response
-
 
 
 def chat_page(request):
     """
-    Renders the main chat interface page.
+    Renders the main chat interface page (static layout with HTMX form).
     """
     return render(request, 'bot/chat.html')
+
 
 @require_POST
 def send_message(request):
     """
-    Handles the user's chat message submitted via POST (HTMX).
-    Returns an HTML snippet containing the user message and the bot response.
+    Handles chat messages and renders appropriate response (text or HTML).
     """
-
-    print("Received POST request for send_message")
     user_message = request.POST.get('message', '').strip()
-
-    # If the message is empty, return an empty response (do not update UI)
     if not user_message:
         return HttpResponse('')
 
-    # Get the bot's response (replace this with real logic or an API call)
-    bot_response = advisor_response(user_message)
+    bot_result = advisor_response(user_message)
 
-    # Render only the chat message snippets (HTMX will insert this into the chat window)
-    return render(request, 'bot/chat_messages.html', {
-        'user_message': user_message,
-        'bot_response': bot_response,
-    })
+    # Process result (dict or text)
+    if isinstance(bot_result, dict):
+        response_type = bot_result.get("type", "text")
+        content = bot_result.get("content", "")
+        if response_type == "html":
+            bot_response = mark_safe(content)
+        else:
+            bot_response = content
+    else:
+        bot_response = str(bot_result)
 
+    context = {
+        "user_message": user_message,
+        "bot_response": bot_response,
+    }
 
+    return render(request, "bot/chat_messages.html", context)

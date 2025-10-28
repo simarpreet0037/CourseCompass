@@ -1,62 +1,71 @@
-import time
-import traceback
 from django.test import TestCase
-from bot.agent import advisor_response, plan_from_llm   # adjust import path if needed
+from neo4j import GraphDatabase
+from courses.neo4j_driver import driver
+from . import agent as advisor
 
-class AdvisorResponseDeepTests(TestCase):
+
+class Neo4jIntegrationTests(TestCase):
     """
-    Full diagnostic test for the Course Advisor chatbot.
-    Captures LLM reasoning, plan parsing, and execution trace.
+    Run with: python manage.py test bot
+    These tests verify Neo4j connection, schema, and query integrity.
     """
 
-    TEST_QUESTIONS = [
-        "What are the prerequisites for CS210?",
-        "Can I take CS215 after CS210?",
-        "Tell me about CS110.",
-        "I’m interested in AI — what courses should I take?",
-        "How many credits is CS215?",
-        "Compare CS210 and CS215.",
-        "What is a prerequisite?",
-        "After completing MATH103, what comes next?",
-        "What do I need before taking calculus?",
-        "Hi there!"
-    ]
+    def test_neo4j_connection(self):
+        """Check if Neo4j connection works."""
+        print("\n🔍 Checking Neo4j connection...")
+        try:
+            with driver.session() as session:
+                msg = session.run("RETURN 'Connected to Neo4j!' AS msg").single()["msg"]
+            self.assertEqual(msg, "Connected to Neo4j!")
+            print("✅ Connection successful")
+        except Exception as e:
+            self.fail(f"❌ Connection failed: {e}")
 
-    def test_advisor_end_to_end(self):
-        print("=" * 90)
-        print("🧠 Starting Deep Diagnostic Test for Course Advisor\n")
+    def test_graph_schema(self):
+        """Check graph schema — labels, relationship types, and node count."""
+        print("\n🔍 Checking schema...")
+        try:
+            with driver.session() as session:
+                labels = [r[0] for r in session.run("CALL db.labels()")]
+                rels = [r[0] for r in session.run("CALL db.relationshipTypes()")]
+                count = session.run("MATCH (n) RETURN count(n) AS cnt").single()["cnt"]
 
-        for i, question in enumerate(self.TEST_QUESTIONS, start=1):
-            print(f"\n{'-'*90}\n🧩 Test {i}: {question}")
-            start_time = time.time()
-            try:
-                # Step 1: Directly inspect LLM planning output
-                plan = None
-                try:
-                    plan = plan_from_llm(question)
-                    print("\n[PLAN_FROM_LLM SUCCESS]")
-                    print("-" * 30)
-                    print(f"Intent: {plan.get('intent')}")
-                    print(f"Course Codes: {plan.get('course_codes')}")
-                    print(f"Reasoning: {plan.get('reasoning')}")
-                    print(f"Needs Graph: {plan.get('needs_graph')}")
-                    print("-" * 30)
-                except Exception as inner_e:
-                    print(f"[❌ plan_from_llm failed] {inner_e}")
-                    traceback.print_exc()
+            print(f"Node Labels: {labels}")
+            print(f"Relationship Types: {rels}")
+            print(f"Total Nodes: {count}")
 
-                # Step 2: Run the advisor full response
-                result = advisor_response(question)
-                print(f"\n💬 FINAL RESPONSE:\n{result}")
+            # Basic sanity checks
+            self.assertIsInstance(labels, list)
+            self.assertIsInstance(rels, list)
+            self.assertGreaterEqual(count, 0)
+        except Exception as e:
+            self.fail(f"❌ Schema query failed: {e}")
 
-            except Exception as e:
-                print(f"\n⚠️ Error during test {i}: {repr(e)}")
-                print("Full traceback:")
-                traceback.print_exc()
+    def test_query_functions(self):
+        """Validate course query helpers in advisor.py."""
+        print("\n🔍 Testing query functions...")
+        sample_code = "CS110"  # replace with one that exists in your graph
 
-            finally:
-                duration = round(time.time() - start_time, 2)
-                print(f"⏱️  Test {i} finished in {duration}s")
+        # 1️⃣ Test course info query
+        res_info = advisor.cypher_course_info(sample_code)
+        print("➡ cypher_course_info:", res_info)
+        self.assertIsInstance(res_info, list)
 
-        print("\n✅ All tests executed. Review the output above for intent parsing and responses.\n")
+        # 2️⃣ Test prerequisites query
+        res_pre = advisor.cypher_prereqs_for(sample_code)
+        print("➡ cypher_prereqs_for:", res_pre)
+        self.assertIsInstance(res_pre, list)
+
+        # 3️⃣ Test next-course query
+        res_next = advisor.cypher_next_after(sample_code)
+        print("➡ cypher_next_after:", res_next)
+        self.assertIsInstance(res_next, list)
         
+    def test_course_property_keys(self):
+        print("\n🔍 Inspecting Course node properties...")
+        with driver.session() as session:
+            result = session.run("MATCH (c:Course) RETURN keys(c) AS props, c LIMIT 3")
+            rows = [r["props"] for r in result]
+            print(rows or "No Course nodes found!")
+            self.assertTrue(rows, "No Course nodes found in Neo4j.")
+
