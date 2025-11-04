@@ -23,7 +23,7 @@ jobs:
 
     - name: Copy project files to EC2
       run: |
-        scp -i ~/.ssh/id_rsa -r . ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/${{ secrets.EC2_USER }}/CourseCompass
+        rsync -avz --exclude='.git' -e "ssh -i ~/.ssh/id_rsa" . ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/${{ secrets.EC2_USER }}/CourseCompass
 
     - name: Deploy on EC2
       run: |
