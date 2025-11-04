@@ -1,0 +1,42 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy to EC2 Instance
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up SSH key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.EC2_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+    - name: Copy project files to EC2
+      run: |
+        scp -i ~/.ssh/id_rsa -r . ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/${{ secrets.EC2_USER }}/CourseCompass
+
+    - name: Deploy on EC2
+      run: |
+        ssh -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          cd /home/${{ secrets.EC2_USER }}/CourseCompass/CourseCompass/docker
+
+          # Generate .env file securely
+          echo "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" > .env
+          echo "NEO4J_URI=${{ secrets.NEO4J_URI }}" >> .env
+          echo "NEO4J_USERNAME=${{ secrets.NEO4J_USERNAME }}" >> .env
+          echo "NEO4J_PASSWORD=${{ secrets.NEO4J_PASSWORD }}" >> .env
+
+
+          # Build and run Docker containers
+          docker-compose up -d --build
+        EOF
