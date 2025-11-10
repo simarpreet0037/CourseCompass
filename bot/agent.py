@@ -346,6 +346,7 @@ def render_prereq_graph(data: dict) -> str:
     target = data["target"]
     prereqs = data["prereqs"]
 
+    # Build Cytoscape-compatible node and edge lists
     nodes = [{
         "data": {
             "id": target["code"],
@@ -356,31 +357,44 @@ def render_prereq_graph(data: dict) -> str:
     edges = []
 
     for p in prereqs:
-        nodes.append({
-            "data": {
-                "id": p["code"],
-                "label": p["code"],
-                "type": p["type"],
-                "recommended": p["recommended"]
-            }
-        })
+        # Add node if not already present
+        if not any(n["data"]["id"] == p["code"] for n in nodes):
+            nodes.append({
+                "data": {
+                    "id": p["code"],
+                    "label": p["code"],
+                    "type": p.get("type", "CUSTOM"),
+                    "recommended": bool(p.get("recommended", False))
+                }
+            })
+
+        # Link prerequisite -> target
         edges.append({
             "data": {
                 "id": f"{p['code']}->{target['code']}",
                 "source": p["code"],
                 "target": target["code"],
-                "type": p["type"]
+                "type": p.get("type", "CUSTOM")
             }
         })
 
-    graph_data = json.dumps(nodes + edges)
+    # ✅ Cytoscape expects { elements: { nodes: [...], edges: [...] } }
+    graph_data = json.dumps({
+        "elements": {
+            "nodes": nodes,
+            "edges": edges
+        }
+    })
 
+    # ✅ HTML structure unchanged (your other code still works)
     html = f"""
     <div class='prereq-response'>
       <strong>Prerequisites for {target["code"]}</strong><br>
-      <div id="mini-graph" style="width:380px;height:260px;border:1px solid #ddd;border-radius:8px;" data-graph='{graph_data}'></div>
+      <div id="mini-graph"
+           style="width:380px;height:260px;border:1px solid #ddd;border-radius:8px;"
+           data-graph='{graph_data}'></div>
       <p style='margin-top:8px;font-style:italic;color:#374151;'>
-        These courses prepare students for {target["code"]} by developing their understanding of computer architecture, system design, and software engineering principles.
+        These courses prepare students for {target["code"]} by developing the necessary background knowledge.
       </p>
       <script>
         document.dispatchEvent(new CustomEvent("renderCytoscapeGraph"));
@@ -388,9 +402,6 @@ def render_prereq_graph(data: dict) -> str:
     </div>
     """
     return html
-
-
-
 
 
 # ============================================================
@@ -441,9 +452,8 @@ Just describe the general skills or foundation gained.
     # -------------------------------------------------------------
     return f"""
     <div class='prereq-response'>
-      <strong>Prerequisites for {course_code}</strong><br>
       {graph_html}
-      <p style='margin-top:8px;font-style:italic;color:#374151;'>{summary}</p>
+      {summary}
     </div>
     """
 
@@ -587,6 +597,8 @@ def advisor_response(question: str):
     if intent in {"prereq_query", "all_prerequisites"}:
         depth = 1 if intent == "prereq_query" else 5
         html = respond_prereq_query(code, question, depth=depth)
+        with open("example.txt", "w") as file:
+            file.write(html)
         return {"type": "html", "content": html}
 
     elif intent == "next_course_query":

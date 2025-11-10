@@ -1,0 +1,19 @@
+
+    <div class='prereq-response'>
+      
+    <div class='prereq-response'>
+      <strong>Prerequisites for CS 215</strong><br>
+      <div id="mini-graph"
+           style="width:380px;height:260px;border:1px solid #ddd;border-radius:8px;"
+           data-graph='{"elements": {"nodes": [{"data": {"id": "CS 215", "label": "CS 215", "kind": "target"}}, {"data": {"id": "CS 210", "label": "CS 210", "type": "AND", "recommended": false}}], "edges": [{"data": {"id": "CS 210->CS 215", "source": "CS 210", "target": "CS 215", "type": "AND"}}]}}'></div>
+      <p style='margin-top:8px;font-style:italic;color:#374151;'>
+        These courses prepare students for CS 215 by developing the necessary background knowledge.
+      </p>
+      <script>
+        document.dispatchEvent(new CustomEvent("renderCytoscapeGraph"));
+      </script>
+    </div>
+    
+      These courses provide a foundation in programming fundamentals, data structures, and software development principles, preparing students for web and database programming.
+    </div>
+    

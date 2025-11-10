@@ -4,9 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CourseCompass Assistant</title>
+
+  <!-- Core Dependencies -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
   <script src="https://unpkg.com/htmx.org@1.9.2"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
 
   <style>
     :root {
@@ -19,6 +22,11 @@
       --bubble-bot-text: #1e1e1e;
       --border-color: #d0d7de;
       --card-bg: #ffffff;
+      --graph-bg: #ffffff;
+      --graph-node: #0d6efd;
+      --graph-prereq: #555;
+      --graph-optional: #00b894;
+      --graph-edge: #888;
     }
 
     [data-theme="dark"] {
@@ -31,6 +39,11 @@
       --bubble-bot-text: #e6edf3;
       --border-color: #30363d;
       --card-bg: #161b22;
+      --graph-bg: #161b22;
+      --graph-node: #1f6feb;
+      --graph-prereq: #aaa;
+      --graph-optional: #00d09c;
+      --graph-edge: #777;
     }
 
     body {
@@ -176,6 +189,11 @@
       background: #b5b5b5;
       border-radius: 4px;
     }
+
+    /* Cytoscape container */
+    #mini-graph {
+      background: var(--graph-bg);
+    }
   </style>
 </head>
 <body>
@@ -217,6 +235,7 @@
   </div>
 
   <script>
+    /* ---------------- Chat Interactions ---------------- */
     function fillSample(text) {
       document.getElementById("message-input").value = text;
       document.getElementById("message-input").focus();
@@ -241,6 +260,7 @@
       }
     });
 
+    /* ---------------- Theme Toggle ---------------- */
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     if (prefersDark) {
       document.documentElement.setAttribute('data-theme', 'dark');
@@ -252,6 +272,68 @@
       const next = current === 'dark' ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', next);
       themeToggle.textContent = next === 'dark' ? '☀️' : '🌙';
+    });
+
+    /* ---------------- Cytoscape Renderer ---------------- */
+    document.addEventListener("renderCytoscapeGraph", () => {
+      document.querySelectorAll("#mini-graph").forEach(graphContainer => {
+        const rawData = graphContainer.dataset.graph;
+        if (!rawData) return;
+
+        let graphData;
+        try {
+          graphData = JSON.parse(rawData);
+        } catch (e) {
+          console.error("Invalid graph JSON", e);
+          return;
+        }
+
+        if (graphContainer._cy) {
+          graphContainer._cy.destroy();
+        }
+
+        const theme = document.documentElement.getAttribute("data-theme");
+        const isDark = theme === "dark";
+
+        const cy = cytoscape({
+          container: graphContainer,
+          elements: graphData.elements,
+          layout: { name: "breadthfirst", directed: true, padding: 20, spacingFactor: 1.2 },
+          style: [
+            {
+              selector: "node",
+              style: {
+                "label": "data(label)",
+                "text-valign": "center",
+                "color": "#fff",
+                "background-color": ele => {
+                  if (ele.data("kind") === "target") return getComputedStyle(document.documentElement).getPropertyValue('--graph-node');
+                  return ele.data("recommended")
+                    ? getComputedStyle(document.documentElement).getPropertyValue('--graph-optional')
+                    : getComputedStyle(document.documentElement).getPropertyValue('--graph-prereq');
+                },
+                "border-width": 2,
+                "border-color": isDark ? "#222" : "#fff",
+                "font-size": 11,
+                "shape": "round-rectangle",
+                "padding": "6px"
+              }
+            },
+            {
+              selector: "edge",
+              style: {
+                "width": 2,
+                "line-color": getComputedStyle(document.documentElement).getPropertyValue('--graph-edge'),
+                "target-arrow-color": getComputedStyle(document.documentElement).getPropertyValue('--graph-edge'),
+                "target-arrow-shape": "triangle",
+                "curve-style": "bezier"
+              }
+            }
+          ]
+        });
+
+        graphContainer._cy = cy;
+      });
     });
   </script>
 </body>
