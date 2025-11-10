@@ -5,7 +5,7 @@ import uuid
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from .forms import CourseForm
-from .neo4j_driver import driver
+from CourseCompass.neo4j_driver import driver
 
 
 def add_course(request):

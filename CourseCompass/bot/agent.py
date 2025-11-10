@@ -4,7 +4,7 @@ import json
 from typing import List, Dict, Optional
 from neo4j import GraphDatabase
 from .groqllm import GroqLLM
-from courses.neo4j_driver import driver
+from CourseCompass.CourseCompass.neo4j_driver import driver
 
 # ============================================================
 # CONFIGURATION

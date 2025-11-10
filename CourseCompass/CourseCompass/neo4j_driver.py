@@ -23,9 +23,7 @@ NEO4J_URI = os.getenv("NEO4J_URI", "database_uri")
 NEO4J_USER = os.getenv("NEO4J_USERNAME", "database_usr")
 NEO4J_PASS = os.getenv("NEO4J_PASSWORD", "database_pass")
 
-print(NEO4J_URI)
-print(NEO4J_PASS)
-print(NEO4J_USER)
+
 
 # Create an SSL context that disables certificate verification
 # WARNING: This is insecure for production. 

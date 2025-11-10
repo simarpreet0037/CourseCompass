@@ -1,6 +1,6 @@
 from django.test import TestCase
 from neo4j import GraphDatabase
-from courses.neo4j_driver import driver
+from CourseCompass.CourseCompass.neo4j_driver import driver
 from . import agent as advisor
 
 
