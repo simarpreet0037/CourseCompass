@@ -1,4 +1,13 @@
 /venv
 \CourseCompass\courses\neo4j_driver.py
 .env
-.pyc
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django migrations cache (optional cleanup)
+*.sqlite3
+
+# VS Code / PyCharm configs (optional)
+.vscode/
