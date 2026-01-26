@@ -597,8 +597,7 @@ def advisor_response(question: str):
     if intent in {"prereq_query", "all_prerequisites"}:
         depth = 1 if intent == "prereq_query" else 5
         html = respond_prereq_query(code, question, depth=depth)
-        with open("example.txt", "w") as file:
-            file.write(html)
+
         return {"type": "html", "content": html}
 
     elif intent == "next_course_query":
