@@ -22,18 +22,11 @@ class GroqLLM(LLM, BaseModel):
             "Authorization": f"Bearer {self.api_key}",
         }
 
-        # For debugging, keep but avoid printing secrets
-        print("Payload sent to Groq API:", {**payload, "messages": "[omitted for brevity]"})
-
         resp = requests.post(self.api_url, headers=headers, json=payload, timeout=self.timeout)
         if not resp.ok:
-            # Surface Groq's actual error text so you know WHY it's 400
             raise RuntimeError(f"Groq error {resp.status_code}: {resp.text}")
 
-        data = resp.json()
-        # Optional debug
-        print("Response JSON keys:", list(data.keys()))
-        return data
+        return resp.json()
 
     def _call(self, prompt: str, stop: Optional[List[str]] = None) -> str:
         payload = {

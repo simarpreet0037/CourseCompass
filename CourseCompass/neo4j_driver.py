@@ -1,48 +1,81 @@
 """
-Neo4j Database Connection Script
+Neo4j Database Connection Module
 --------------------------------
-This script connects to the Neo4j Aura database using the official Neo4j Python driver.
-This contanins the graph of the various courses and their prerequisites.
-It bypasses SSL certificate verification (use with caution in production) to handle 
-self-signed certificates or local development environments.
-
-Functionality:
-1. Defines database connection credentials.
-2. Configures an SSL context to skip certificate validation.
-3. Establishes a connection to the Neo4j instance.
-4. Verifies the connection.
-5. Runs a simple test query to confirm connectivity.
+Manages Neo4j database connection with proper SSL handling and connection pooling.
 """
 
 from neo4j import GraphDatabase
 import ssl
 import os
+import logging
 
-# Neo4j Aura credentials (loaded from environment)
-NEO4J_URI = os.getenv("NEO4J_URI", "database_uri")
-NEO4J_USER = os.getenv("NEO4J_USERNAME", "database_usr")
-NEO4J_PASS = os.getenv("NEO4J_PASSWORD", "database_pass")
+logger = logging.getLogger(__name__)
+
+# Neo4j credentials (loaded from environment)
+NEO4J_URI = os.getenv("NEO4J_URI", "")
+NEO4J_USER = os.getenv("NEO4J_USERNAME", "neo4j")
+NEO4J_PASS = os.getenv("NEO4J_PASSWORD", "")
+
+# SSL Configuration
+# In production, set NEO4J_SKIP_SSL_VERIFY=false (default)
+# Only set to 'true' for local development with self-signed certs
+SKIP_SSL_VERIFY = os.getenv("NEO4J_SKIP_SSL_VERIFY", "false").lower() == "true"
 
 
+def create_driver():
+    """Create and configure Neo4j driver with appropriate SSL settings."""
+    if not NEO4J_URI:
+        logger.warning("NEO4J_URI not set. Database features will be unavailable.")
+        return None
+    
+    driver_kwargs = {
+        "auth": (NEO4J_USER, NEO4J_PASS),
+        "max_connection_lifetime": 3600,  # 1 hour
+        "max_connection_pool_size": 50,
+        "connection_acquisition_timeout": 60,
+    }
+    
+    if SKIP_SSL_VERIFY:
+        # WARNING: Only for development with self-signed certificates
+        logger.warning("SSL verification disabled - NOT SAFE FOR PRODUCTION")
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        driver_kwargs["ssl_context"] = ssl_context
+    
+    try:
+        drv = GraphDatabase.driver(NEO4J_URI, **driver_kwargs)
+        drv.verify_connectivity()
+        logger.info("Neo4j connection established successfully")
+        return drv
+    except Exception as e:
+        logger.error(f"Failed to connect to Neo4j: {e}")
+        raise
 
-# Create an SSL context that disables certificate verification
-# WARNING: This is insecure for production. 
-# Only use when testing or connecting to a trusted source with self-signed certs.
-ssl_context = ssl.create_default_context()
-ssl_context.check_hostname = False
-ssl_context.verify_mode = ssl.CERT_NONE
 
-# Initialize the Neo4j driver with the provided credentials and SSL settings
-driver = GraphDatabase.driver(
-    NEO4J_URI,
-    auth=(NEO4J_USER, NEO4J_PASS),
-    ssl_context=ssl_context
-)
+# Initialize driver (lazy loading pattern)
+_driver = None
 
-# Verify connectivity to the database
-driver.verify_connectivity()
 
-# Open a session and run a simple query to confirm the connection
-with driver.session(database="neo4j") as session:
-    result = session.run("RETURN 1 AS test")
-    print("Connection successful, test result:", result.single()["test"])
+def get_driver():
+    """Get or create the Neo4j driver instance."""
+    global _driver
+    if _driver is None:
+        _driver = create_driver()
+    return _driver
+
+
+# For backward compatibility
+driver = create_driver()
+
+
+def close_driver():
+    """Close the Neo4j driver connection."""
+    global _driver, driver
+    if _driver:
+        _driver.close()
+        _driver = None
+    if driver:
+        driver.close()
+        driver = None
+    logger.info("Neo4j connection closed")

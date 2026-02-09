@@ -1,14 +1,26 @@
-import re
-import uuid
-import re
-import uuid
+"""
+Course management views.
+"""
+import logging
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from .forms import CourseForm
+from .services import (
+    parse_prereq_groups_from_post,
+    validate_prereq_courses,
+    create_prereq_groups,
+    delete_course_prereq_groups,
+    get_all_prereq_codes,
+    create_or_update_course,
+    get_course_prereq_groups,
+)
 from CourseCompass.neo4j_driver import driver
+
+logger = logging.getLogger(__name__)
 
 
 def add_course(request):
+    """Add a new course to the database."""
     if request.method == 'POST':
         form = CourseForm(request.POST)
         if form.is_valid():
@@ -19,48 +31,13 @@ def add_course(request):
             level = int(data['level'])
             description = data['description'].strip()
 
-            required_groups = []
-            recommended_groups = []
-            custom_groups = []
-
-            for key, value in request.POST.items():
-                match_req = re.match(r'required_courses_(\d+)', key)
-                match_rec = re.match(r'recommended_courses_(\d+)', key)
-                match_cust = re.match(r'custom_courses_(\d+)', key)
-
-                if match_req:
-                    index = match_req.group(1)
-                    courses = [c.strip().upper() for c in value.split(',') if c.strip()]
-                    group_type = request.POST.get(f'required_group_type_{index}', 'AND')
-                    if courses:
-                        required_groups.append({'type': group_type, 'courses': courses})
-
-                if match_rec:
-                    index = match_rec.group(1)
-                    courses = [c.strip().upper() for c in value.split(',') if c.strip()]
-                    group_type = request.POST.get(f'recommended_group_type_{index}', 'OR')
-                    if courses:
-                        recommended_groups.append({'type': group_type, 'courses': courses})
-
-                if match_cust:
-                    index = match_cust.group(1)
-                    courses = [c.strip().upper() for c in value.split(',') if c.strip()]
-                    group_type = request.POST.get(f'custom_group_type_{index}', '').strip()
-                    if courses and group_type:
-                        custom_groups.append({'type': group_type, 'courses': courses})
-
-            all_prereq_codes = {c for group in (required_groups + recommended_groups + custom_groups) for c in group['courses']}
+            # Parse prerequisite groups from POST data
+            required_groups, recommended_groups, custom_groups = parse_prereq_groups_from_post(request.POST)
+            all_prereq_codes = get_all_prereq_codes(required_groups, recommended_groups, custom_groups)
 
             with driver.session() as session:
-                missing = []
-                for code_check in all_prereq_codes:
-                    exists = session.run("MATCH (c:Course {code: $code}) RETURN c", code=code_check).single()
-                missing = []
-                for code_check in all_prereq_codes:
-                    exists = session.run("MATCH (c:Course {code: $code}) RETURN c", code=code_check).single()
-                    if not exists:
-                        missing.append(code_check)
-                        missing.append(code_check)
+                # Validate prerequisite courses exist
+                missing = validate_prereq_courses(session, all_prereq_codes)
 
                 if missing:
                     messages.error(request, f"Missing prerequisite courses: {', '.join(missing)}")
@@ -72,36 +49,13 @@ def add_course(request):
                         'custom_groups': custom_groups
                     })
 
-                session.run("""
-                    MERGE (c:Course {code: $code})
-                    SET c.title = $title, 
-                        c.credits = $credits, 
-                        c.level = $level,
-                        c.description = $description
-                """, code=code, title=title, credits=credits, level=level, description=description)
+                # Create or update course
+                create_or_update_course(session, code, title, credits, level, description)
+                
+                # Create prerequisite groups
+                create_prereq_groups(session, code, required_groups, recommended_groups, custom_groups)
 
-                def add_prereq_group(tx, groups, is_recommended):
-                    for group in groups:
-                        group_type = group['type']
-                        group_id = str(uuid.uuid4())
-
-                        tx.run("""
-                            MATCH (c:Course {code: $course_code})
-                            CREATE (g:PrerequisiteGroup {id: $group_id, type: $group_type, recommended: $is_rec})
-                            MERGE (c)-[:REQUIRES]->(g)
-                        """, course_code=code, group_id=group_id, group_type=group_type, is_rec=is_recommended)
-
-                        for course in group['courses']:
-                            tx.run("""
-                                MATCH (p:Course {code: $prereq})
-                                MATCH (g:PrerequisiteGroup {id: $group_id})
-                                MERGE (g)-[:HAS]->(p)
-                            """, group_id=group_id, prereq=course)
-
-                session.write_transaction(add_prereq_group, required_groups, False)
-                session.write_transaction(add_prereq_group, recommended_groups, True)
-                session.write_transaction(add_prereq_group, custom_groups, None)
-
+            logger.info(f"Course '{code}' added successfully")
             messages.success(request, f"Course '{code}' added successfully.")
             return redirect('view_courses')
     else:
@@ -117,6 +71,7 @@ def add_course(request):
 
 
 def view_courses(request):
+    """View all courses and their prerequisites graph."""
     with driver.session() as session:
         result = session.run("""
             MATCH (c:Course)
@@ -153,7 +108,7 @@ def view_courses(request):
                 nodes.append({'id': prereq, 'label': prereq, 'description': ''})
                 node_set.add(prereq)
             if prereq:
-                edges.append({'from': prereq, 'to': code})  # Prereq → Course
+                edges.append({'from': prereq, 'to': code})
 
     return render(request, 'courses/view_graph.html', {
         'nodes': nodes,
@@ -163,6 +118,7 @@ def view_courses(request):
 
 
 def edit_course(request, code):
+    """Edit an existing course."""
     with driver.session() as session:
         course_data = session.run("""
             MATCH (c:Course {code: $code})
@@ -185,43 +141,12 @@ def edit_course(request, code):
                 level = int(data['level'])
                 description = data['description'].strip()
 
-                required_groups = []
-                recommended_groups = []
-                custom_groups = []
+                # Parse prerequisite groups from POST data
+                required_groups, recommended_groups, custom_groups = parse_prereq_groups_from_post(request.POST)
+                all_prereq_codes = get_all_prereq_codes(required_groups, recommended_groups, custom_groups)
 
-                for key, value in request.POST.items():
-                    match_req = re.match(r'required_courses_(\d+)', key)
-                    match_rec = re.match(r'recommended_courses_(\d+)', key)
-                    match_cust = re.match(r'custom_courses_(\d+)', key)
-
-                    if match_req:
-                        index = match_req.group(1)
-                        courses = [c.strip().upper() for c in value.split(',') if c.strip()]
-                        group_type = request.POST.get(f'required_group_type_{index}', 'AND')
-                        if courses:
-                            required_groups.append({'type': group_type, 'courses': courses})
-
-                    if match_rec:
-                        index = match_rec.group(1)
-                        courses = [c.strip().upper() for c in value.split(',') if c.strip()]
-                        group_type = request.POST.get(f'recommended_group_type_{index}', 'OR')
-                        if courses:
-                            recommended_groups.append({'type': group_type, 'courses': courses})
-
-                    if match_cust:
-                        index = match_cust.group(1)
-                        courses = [c.strip().upper() for c in value.split(',') if c.strip()]
-                        group_type = request.POST.get(f'custom_group_type_{index}', '').strip()
-                        if courses and group_type:
-                            custom_groups.append({'type': group_type, 'courses': courses})
-
-                all_prereq_codes = {c for group in (required_groups + recommended_groups + custom_groups) for c in group['courses']}
-
-                missing = []
-                for code_check in all_prereq_codes:
-                    exists = session.run("MATCH (c:Course {code: $code}) RETURN c", code=code_check).single()
-                    if not exists:
-                        missing.append(code_check)
+                # Validate prerequisite courses exist
+                missing = validate_prereq_courses(session, all_prereq_codes)
 
                 if missing:
                     messages.error(request, f"Missing prerequisite courses: {', '.join(missing)}")
@@ -234,41 +159,14 @@ def edit_course(request, code):
                         'code': code
                     })
 
-                session.run("""
-                    MATCH (c:Course {code: $code})
-                    SET c.title = $title, 
-                        c.credits = $credits, 
-                        c.level = $level,
-                        c.description = $description
-                """, code=code, title=title, credits=credits, level=level, description=description)
+                # Update course
+                create_or_update_course(session, code, title, credits, level, description)
 
-                session.run("""
-                    MATCH (c:Course {code: $code})-[:REQUIRES]->(g:PrerequisiteGroup)
-                    DETACH DELETE g
-                """, code=code)
+                # Delete old prerequisite groups and create new ones
+                delete_course_prereq_groups(session, code)
+                create_prereq_groups(session, code, required_groups, recommended_groups, custom_groups)
 
-                def add_prereq_group(tx, groups, is_recommended):
-                    for group in groups:
-                        group_type = group['type']
-                        group_id = str(uuid.uuid4())
-
-                        tx.run("""
-                            MATCH (c:Course {code: $course_code})
-                            CREATE (g:PrerequisiteGroup {id: $group_id, type: $group_type, recommended: $is_rec})
-                            MERGE (c)-[:REQUIRES]->(g)
-                        """, course_code=code, group_id=group_id, group_type=group_type, is_rec=is_recommended)
-
-                        for course in group['courses']:
-                            tx.run("""
-                                MATCH (p:Course {code: $prereq})
-                                MATCH (g:PrerequisiteGroup {id: $group_id})
-                                MERGE (g)-[:HAS]->(p)
-                            """, group_id=group_id, prereq=course)
-
-                session.write_transaction(add_prereq_group, required_groups, False)
-                session.write_transaction(add_prereq_group, recommended_groups, True)
-                session.write_transaction(add_prereq_group, custom_groups, None)
-
+                logger.info(f"Course '{code}' updated successfully")
                 messages.success(request, f"Course '{code}' updated successfully.")
                 return redirect('view_courses')
         else:
@@ -281,24 +179,8 @@ def edit_course(request, code):
             })
             form.fields['code'].widget.attrs['readonly'] = True
 
-            required_groups = []
-            recommended_groups = []
-            custom_groups = []
-
-            results = session.run("""
-                MATCH (c:Course {code: $code})-[:REQUIRES]->(g:PrerequisiteGroup)
-                OPTIONAL MATCH (g)-[:HAS]->(p:Course)
-                RETURN g.type AS type, g.recommended AS recommended, COLLECT(p.code) AS courses
-            """, code=code)
-
-            for record in results:
-                group = {'type': record['type'], 'courses': record['courses']}
-                if record['recommended'] is True:
-                    recommended_groups.append(group)
-                elif record['recommended'] is False:
-                    required_groups.append(group)
-                else:
-                    custom_groups.append(group)
+            # Get existing prerequisite groups
+            required_groups, recommended_groups, custom_groups = get_course_prereq_groups(session, code)
 
             return render(request, 'courses/course_form.html', {
                 'form': form,
@@ -311,6 +193,7 @@ def edit_course(request, code):
 
 
 def delete_course(request, code):
+    """Delete a course and its prerequisite groups."""
     with driver.session() as session:
         course_exists = session.run("MATCH (c:Course {code: $code}) RETURN c", code=code).single()
         if not course_exists:
@@ -323,5 +206,6 @@ def delete_course(request, code):
             DETACH DELETE c, g
         """, code=code)
 
+    logger.info(f"Course '{code}' deleted successfully")
     messages.success(request, f"Course '{code}' deleted successfully.")
     return redirect('view_courses')
