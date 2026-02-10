@@ -45,7 +45,6 @@ def create_driver():
     
     try:
         drv = GraphDatabase.driver(NEO4J_URI, **driver_kwargs)
-        drv.verify_connectivity()
         logger.info("Neo4j connection established successfully")
         return drv
     except Exception as e:
