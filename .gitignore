@@ -1,6 +1,7 @@
 /venv
 \CourseCompass\courses\neo4j_driver.py
 .env
+.example
 # Python cache files
 __pycache__/
 *.py[cod]
