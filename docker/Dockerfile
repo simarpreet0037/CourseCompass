@@ -34,6 +34,9 @@ COPY . .
 # Make entrypoint executable
 RUN chmod +x docker/entrypoint.sh
 
+# Collect static files as root (build time)
+RUN python manage.py collectstatic --noinput
+
 # Create non-root user for security
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
