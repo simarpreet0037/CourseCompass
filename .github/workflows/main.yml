@@ -29,7 +29,7 @@ jobs:
     - name: Deploy on EC2
       run: |
         ssh -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
-          cd /home/${{ secrets.EC2_USER }}/CourseCompass/docker
+          cd /home/${{ secrets.EC2_USER }}/CourseCompass
 
           # Generate .env file securely
           echo "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" > .env
@@ -37,7 +37,7 @@ jobs:
           echo "NEO4J_USERNAME=${{ secrets.NEO4J_USERNAME }}" >> .env
           echo "NEO4J_PASSWORD=${{ secrets.NEO4J_PASSWORD }}" >> .env
 
-
+          cd /docker
           # Build and run Docker containers
           docker-compose up -d --build
         EOF
