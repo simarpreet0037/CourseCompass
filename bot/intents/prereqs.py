@@ -67,7 +67,7 @@ def render_prereq_graph(data: dict) -> str:
       <div id="mini-graph"
            style="width:380px;height:260px;border:1px solid #ddd;border-radius:8px;"
            data-graph='{graph_data}'></div>
-      <p style='margin-top:8px;font-style:italic;color:#374151;'>
+      <p style='margin-top:8px;font-style:italic;color:#ffffff;'>
         These courses prepare students for {target["code"]} by developing the necessary background knowledge.
       </p>
       <script>
