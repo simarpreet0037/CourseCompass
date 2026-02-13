@@ -6,7 +6,7 @@ from .base import *
 
 DEBUG = False
 
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost'])
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS",default=["localhost", "127.0.0.1"])
 
 # Security settings for production
 SECURE_BROWSER_XSS_FILTER = True
