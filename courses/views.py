@@ -14,9 +14,18 @@ from .services import (
     create_or_update_course,
     get_course_prereq_groups,
 )
-from CourseCompass.neo4j_driver import driver
+from CourseCompass.neo4j_driver import get_driver
 
 logger = logging.getLogger(__name__)
+
+
+def _get_neo4j_driver_or_redirect(request):
+    """Return Neo4j driver or redirect with a user-friendly error."""
+    drv = get_driver()
+    if drv is None:
+        messages.error(request, "Neo4j is not configured. Set NEO4J_URI/NEO4J_USERNAME/NEO4J_PASSWORD.")
+        return None
+    return drv
 
 
 def add_course(request):
@@ -35,7 +44,11 @@ def add_course(request):
             required_groups, recommended_groups, custom_groups = parse_prereq_groups_from_post(request.POST)
             all_prereq_codes = get_all_prereq_codes(required_groups, recommended_groups, custom_groups)
 
-            with driver.session() as session:
+            drv = _get_neo4j_driver_or_redirect(request)
+            if drv is None:
+                return redirect('view_courses')
+
+            with drv.session() as session:
                 # Validate prerequisite courses exist
                 missing = validate_prereq_courses(session, all_prereq_codes)
 
@@ -72,7 +85,15 @@ def add_course(request):
 
 def view_courses(request):
     """View all courses and their prerequisites graph."""
-    with driver.session() as session:
+    drv = _get_neo4j_driver_or_redirect(request)
+    if drv is None:
+        return render(request, 'courses/view_graph.html', {
+            'nodes': [],
+            'edges': [],
+            'courses': []
+        })
+
+    with drv.session() as session:
         result = session.run("""
             MATCH (c:Course)
             OPTIONAL MATCH (c)-[:REQUIRES]->(g:PrerequisiteGroup)-[:HAS]->(p:Course)
@@ -119,7 +140,11 @@ def view_courses(request):
 
 def edit_course(request, code):
     """Edit an existing course."""
-    with driver.session() as session:
+    drv = _get_neo4j_driver_or_redirect(request)
+    if drv is None:
+        return redirect('view_courses')
+
+    with drv.session() as session:
         course_data = session.run("""
             MATCH (c:Course {code: $code})
             RETURN c.title AS title, 
@@ -194,7 +219,11 @@ def edit_course(request, code):
 
 def delete_course(request, code):
     """Delete a course and its prerequisite groups."""
-    with driver.session() as session:
+    drv = _get_neo4j_driver_or_redirect(request)
+    if drv is None:
+        return redirect('view_courses')
+
+    with drv.session() as session:
         course_exists = session.run("MATCH (c:Course {code: $code}) RETURN c", code=code).single()
         if not course_exists:
             messages.error(request, f"Course '{code}' not found.")

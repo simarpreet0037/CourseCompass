@@ -54,6 +54,33 @@ def create_driver():
 
 # Initialize driver (lazy loading pattern)
 _driver = None
+_schema_initialized = False
+
+
+def initialize_schema(drv):
+    """Ensure required Neo4j constraints exist."""
+    global _schema_initialized
+    if _schema_initialized:
+        return
+
+    with drv.session() as session:
+        session.run(
+            """
+            CREATE CONSTRAINT course_code_unique IF NOT EXISTS
+            FOR (c:Course)
+            REQUIRE c.code IS UNIQUE
+            """
+        )
+        session.run(
+            """
+            CREATE CONSTRAINT prereq_group_id_unique IF NOT EXISTS
+            FOR (g:PrerequisiteGroup)
+            REQUIRE g.id IS UNIQUE
+            """
+        )
+
+    _schema_initialized = True
+    logger.info("Neo4j schema constraints verified")
 
 
 def get_driver():
@@ -61,20 +88,24 @@ def get_driver():
     global _driver
     if _driver is None:
         _driver = create_driver()
+        if _driver:
+            _driver.verify_connectivity()
+            initialize_schema(_driver)
     return _driver
 
 
 # For backward compatibility
-driver = create_driver()
+driver = None
 
 
 def close_driver():
     """Close the Neo4j driver connection."""
-    global _driver, driver
+    global _driver, driver, _schema_initialized
     if _driver:
         _driver.close()
         _driver = None
     if driver:
         driver.close()
         driver = None
+    _schema_initialized = False
     logger.info("Neo4j connection closed")

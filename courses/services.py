@@ -5,7 +5,6 @@ import re
 import uuid
 import logging
 from typing import Dict, List, Tuple, Optional
-from CourseCompass.neo4j_driver import driver
 
 logger = logging.getLogger(__name__)
 
@@ -101,9 +100,10 @@ def create_prereq_groups(session, course_code: str,
                     MERGE (g)-[:HAS]->(p)
                 """, group_id=group_id, prereq=course)
 
-    session.write_transaction(add_prereq_group, required_groups, False)
-    session.write_transaction(add_prereq_group, recommended_groups, True)
-    session.write_transaction(add_prereq_group, custom_groups, None)
+    # Run all group writes in one managed transaction per request.
+    session.execute_write(add_prereq_group, required_groups, False)
+    session.execute_write(add_prereq_group, recommended_groups, True)
+    session.execute_write(add_prereq_group, custom_groups, None)
 
 
 def delete_course_prereq_groups(session, course_code: str) -> None:

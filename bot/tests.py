@@ -4,7 +4,7 @@ Run with: python manage.py test bot
 """
 import logging
 from django.test import TestCase
-from CourseCompass.neo4j_driver import driver
+from CourseCompass.neo4j_driver import get_driver
 from . import queries
 
 logger = logging.getLogger(__name__)
@@ -15,10 +15,17 @@ class Neo4jIntegrationTests(TestCase):
     Tests verify Neo4j connection, schema, and query integrity.
     """
 
+    def _require_driver(self):
+        drv = get_driver()
+        if drv is None:
+            self.skipTest("Neo4j is not configured for this environment")
+        return drv
+
     def test_neo4j_connection(self):
         """Check if Neo4j connection works."""
         logger.info("Checking Neo4j connection...")
         try:
+            driver = self._require_driver()
             with driver.session() as session:
                 msg = session.run("RETURN 'Connected to Neo4j!' AS msg").single()["msg"]
             self.assertEqual(msg, "Connected to Neo4j!")
@@ -30,6 +37,7 @@ class Neo4jIntegrationTests(TestCase):
         """Check graph schema — labels, relationship types, and node count."""
         logger.info("Checking schema...")
         try:
+            driver = self._require_driver()
             with driver.session() as session:
                 labels = [r[0] for r in session.run("CALL db.labels()")]
                 rels = [r[0] for r in session.run("CALL db.relationshipTypes()")]
@@ -69,6 +77,7 @@ class Neo4jIntegrationTests(TestCase):
     def test_course_property_keys(self):
         """Verify Course nodes have expected properties."""
         logger.info("Inspecting Course node properties...")
+        driver = self._require_driver()
         with driver.session() as session:
             result = session.run("MATCH (c:Course) RETURN keys(c) AS props, c LIMIT 3")
             rows = [r["props"] for r in result]

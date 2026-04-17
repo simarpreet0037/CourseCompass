@@ -3,7 +3,7 @@ Neo4j query helpers for bot operations.
 """
 import logging
 from typing import List, Dict, Optional
-from CourseCompass.neo4j_driver import driver
+from CourseCompass.neo4j_driver import get_driver
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 def run_query(query: str, params: Optional[dict] = None) -> List[Dict]:
     """Execute a Cypher query and return results as list of dicts."""
     try:
+        driver = get_driver()
+        if driver is None:
+            return [{"error": "Neo4j is not configured"}]
         with driver.session() as session:
             result = session.run(query, params or {})
             return [record.data() for record in result]
@@ -38,22 +41,26 @@ def cypher_prereqs_full(code: str, depth: int = 3) -> Dict:
     Graph schema:
       (Course)-[:REQUIRES]->(PrerequisiteGroup)-[:HAS]->(Course)
     """
-    query = f"""
-    MATCH (target:Course {{code:$code}})-[:REQUIRES]->(g:PrerequisiteGroup)-[:HAS*1..{depth}]->(p:Course)
-    WITH DISTINCT target, g, p
+    # Keep depth in a safe and practical range to avoid expensive traversals.
+    depth = max(1, min(int(depth), 8))
+    max_rel_len = depth * 2
+
+    query = """
+    MATCH p=(target:Course {code:$code})-[:REQUIRES|HAS*2..$max_rel_len]->(pr:Course)
+    WITH DISTINCT target, pr, nodes(p)[1] AS first_group
     RETURN DISTINCT
         target.code         AS target_code,
         target.title        AS target_title,
         target.description  AS target_desc,
-        p.code              AS prereq_code,
-        p.title             AS prereq_title,
-        p.description       AS prereq_desc,
-        g.type              AS group_type,
-        g.recommended       AS recommended
+        pr.code             AS prereq_code,
+        pr.title            AS prereq_title,
+        pr.description      AS prereq_desc,
+        first_group.type    AS group_type,
+        first_group.recommended AS recommended
     ORDER BY group_type, prereq_code
     """
 
-    res = run_query(query, {"code": code})
+    res = run_query(query, {"code": code, "max_rel_len": max_rel_len})
 
     if not res or "error" in res[0]:
         return {"target": {}, "prereqs": []}
@@ -93,6 +100,9 @@ def summarize_graph_context(limit: int = 50) -> str:
     This helps the LLM reason about advising or general questions with real context.
     """
     try:
+        driver = get_driver()
+        if driver is None:
+            return "(graph context unavailable: Neo4j is not configured)"
         with driver.session() as session:
             query = """
             MATCH (c:Course)
