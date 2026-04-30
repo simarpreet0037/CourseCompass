@@ -27,21 +27,24 @@ def parse_prereq_groups_from_post(request_post: Dict) -> Tuple[List[Dict], List[
 
         if match_req:
             index = match_req.group(1)
-            courses = [c.strip().upper() for c in value.split(',') if c.strip()]
+            # Normalize course codes by removing spaces (e.g., 'CS 115' -> 'CS115')
+            courses = [c.replace(' ', '').strip().upper() for c in value.split(',') if c.strip()]
             group_type = request_post.get(f'required_group_type_{index}', 'AND')
             if courses:
                 required_groups.append({'type': group_type, 'courses': courses})
 
         if match_rec:
             index = match_rec.group(1)
-            courses = [c.strip().upper() for c in value.split(',') if c.strip()]
+            # Normalize course codes by removing spaces (e.g., 'CS 115' -> 'CS115')
+            courses = [c.replace(' ', '').strip().upper() for c in value.split(',') if c.strip()]
             group_type = request_post.get(f'recommended_group_type_{index}', 'OR')
             if courses:
                 recommended_groups.append({'type': group_type, 'courses': courses})
 
         if match_cust:
             index = match_cust.group(1)
-            courses = [c.strip().upper() for c in value.split(',') if c.strip()]
+            # Normalize course codes by removing spaces (e.g., 'CS 115' -> 'CS115')
+            courses = [c.replace(' ', '').strip().upper() for c in value.split(',') if c.strip()]
             group_type = request_post.get(f'custom_group_type_{index}', '').strip()
             if courses and group_type:
                 custom_groups.append({'type': group_type, 'courses': courses})

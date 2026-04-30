@@ -34,7 +34,8 @@ def add_course(request):
         form = CourseForm(request.POST)
         if form.is_valid():
             data = form.cleaned_data
-            code = data['code'].strip().upper()
+            # Course code is already normalized by form's clean_code() method
+            code = data['code']
             title = data['title'].strip()
             credits = data['credits']
             level = int(data['level'])
@@ -140,6 +141,9 @@ def view_courses(request):
 
 def edit_course(request, code):
     """Edit an existing course."""
+    # Normalize course code by removing spaces
+    code = code.replace(' ', '').strip().upper()
+    
     drv = _get_neo4j_driver_or_redirect(request)
     if drv is None:
         return redirect('view_courses')
@@ -219,6 +223,9 @@ def edit_course(request, code):
 
 def delete_course(request, code):
     """Delete a course and its prerequisite groups."""
+    # Normalize course code by removing spaces
+    code = code.replace(' ', '').strip().upper()
+    
     drv = _get_neo4j_driver_or_redirect(request)
     if drv is None:
         return redirect('view_courses')

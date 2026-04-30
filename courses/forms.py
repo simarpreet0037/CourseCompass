@@ -10,3 +10,9 @@ class CourseForm(forms.Form):
         widget=forms.Textarea(attrs={'rows': 4, 'cols': 50}),
         required=False
     )
+
+    def clean_code(self):
+        """Normalize course code by removing spaces and converting to uppercase."""
+        code = self.cleaned_data.get('code', '')
+        # Remove spaces and convert to uppercase (e.g., 'CS 115' -> 'CS115')
+        return code.replace(' ', '').strip().upper()

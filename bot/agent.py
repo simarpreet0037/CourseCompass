@@ -36,22 +36,23 @@ llm = GroqLLM(api_key=API_KEY, model=MODEL_NAME)
 def normalize_course_code(text: str) -> str:
     """
     Normalize course names or phrases into the graph's code format.
-    For example, "data structures" → "CS 210", "cs210" → "CS 210"
+    For example, "data structures" → "CS210", "cs210" → "CS210", "CS 115" → "CS115"
+    Removes spaces for consistent matching (e.g., "CS 115" and "CS115" both become "CS115")
     """
     text = text.lower().strip()
 
     # Map aliases first
     for alias, code in COURSE_ALIASES.items():
         if alias in text:
-            # Insert a space after department letters if missing
-            return re.sub(r"([a-z]+)(\d+)", r"\1 \2", code.upper())
+            # Remove spaces from the normalized code
+            return re.sub(r"([a-z]+)(\d+)", r"\1\2", code.upper())
 
-    # Match patterns like "cs210", "math103", etc. and insert space
+    # Match patterns like "cs210", "cs 210", "math103", "math 103", etc. and remove space
     match = re.search(r"\b(cs|math|stat|eng|bio|chem)[\s\-]?(\d{3})\b", text)
     if match:
         dept = match.group(1).upper()
         num = match.group(2)
-        return f"{dept} {num}"
+        return f"{dept}{num}"
 
     return ""
 

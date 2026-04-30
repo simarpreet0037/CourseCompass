@@ -1,0 +1,66 @@
+name: CD to GCP VM
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: cd-gcp-vm
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Deploy over SSH
+        env:
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_USER: ${{ secrets.VM_USER }}
+          VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+          VM_SSH_PORT: ${{ secrets.VM_SSH_PORT }}
+          VM_APP_DIR: ${{ secrets.VM_APP_DIR }}
+          BRANCH_NAME: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${VM_HOST}" ] || [ -z "${VM_USER}" ] || [ -z "${VM_SSH_KEY}" ]; then
+            echo "Missing required secrets. Required: VM_HOST, VM_USER, VM_SSH_KEY, PROD_ENV_FILE"
+            exit 1
+          fi
+
+          SSH_PORT="${VM_SSH_PORT:-22}"
+          APP_DIR="${VM_APP_DIR:-/opt/coursecompass}"
+
+          mkdir -p ~/.ssh
+          printf '%s\n' "${VM_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "${SSH_PORT}" -H "${VM_HOST}" >> ~/.ssh/known_hosts
+
+          ssh -p "${SSH_PORT}" "${VM_USER}@${VM_HOST}" "APP_DIR='${APP_DIR}' BRANCH_NAME='${BRANCH_NAME}' REPO='${REPO}' bash -s" << 'REMOTE_SCRIPT'
+          set -euo pipefail
+
+          # Ensure app directory exists and has latest branch code.
+          if [ ! -d "${APP_DIR}/.git" ]; then
+            git clone "https://github.com/${REPO}.git" "${APP_DIR}"
+          fi
+
+          cd "${APP_DIR}"
+          git fetch --prune origin
+          git checkout "${BRANCH_NAME}"
+          git reset --hard "origin/${BRANCH_NAME}"
+
+          mkdir -p docker
+          cat > docker/.env << 'EOF'
+          ${{ secrets.PROD_ENV_FILE }}
+          EOF
+
+          cd docker
+          docker compose up -d --build --remove-orphans
+          docker image prune -f
+          REMOTE_SCRIPT

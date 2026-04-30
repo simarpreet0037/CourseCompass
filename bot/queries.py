@@ -24,6 +24,8 @@ def run_query(query: str, params: Optional[dict] = None) -> List[Dict]:
 
 def cypher_course_info(code: str) -> List[Dict]:
     """Get basic information about a course."""
+    # Normalize course code by removing spaces (e.g., 'CS 115' -> 'CS115')
+    code = code.replace(' ', '').strip().upper()
     query = """
     MATCH (c:Course {code:$code})
     RETURN c.code AS code, c.title AS title, c.credits AS credits,
@@ -41,12 +43,15 @@ def cypher_prereqs_full(code: str, depth: int = 3) -> Dict:
     Graph schema:
       (Course)-[:REQUIRES]->(PrerequisiteGroup)-[:HAS]->(Course)
     """
+    # Normalize course code by removing spaces (e.g., 'CS 115' -> 'CS115')
+    code = code.replace(' ', '').strip().upper()
     # Keep depth in a safe and practical range to avoid expensive traversals.
     depth = max(1, min(int(depth), 8))
     max_rel_len = depth * 2
 
-    query = """
-    MATCH p=(target:Course {code:$code})-[:REQUIRES|HAS*2..$max_rel_len]->(pr:Course)
+    # Neo4j does not allow parameters in variable-length relationship bounds.
+    query = f"""
+    MATCH p=(target:Course {{code:$code}})-[:REQUIRES|HAS*2..{max_rel_len}]->(pr:Course)
     WITH DISTINCT target, pr, nodes(p)[1] AS first_group
     RETURN DISTINCT
         target.code         AS target_code,
@@ -60,7 +65,7 @@ def cypher_prereqs_full(code: str, depth: int = 3) -> Dict:
     ORDER BY group_type, prereq_code
     """
 
-    res = run_query(query, {"code": code, "max_rel_len": max_rel_len})
+    res = run_query(query, {"code": code})
 
     if not res or "error" in res[0]:
         return {"target": {}, "prereqs": []}
@@ -87,6 +92,8 @@ def cypher_prereqs_full(code: str, depth: int = 3) -> Dict:
 
 def cypher_next_after(code: str) -> List[Dict]:
     """Get courses that have this course as a prerequisite."""
+    # Normalize course code by removing spaces (e.g., 'CS 115' -> 'CS115')
+    code = code.replace(' ', '').strip().upper()
     query = """
     MATCH (next:Course)-[:REQUIRES]->(:PrerequisiteGroup)-[:HAS]->(c:Course {code:$code})
     RETURN DISTINCT next.code AS code, next.title AS title
