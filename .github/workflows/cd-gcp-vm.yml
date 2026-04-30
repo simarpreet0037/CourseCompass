@@ -65,6 +65,17 @@ jobs:
           EOF
 
           cd docker
-          docker-compose up -d --build --remove-orphans
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "Docker is not installed or not in PATH on the VM."
+            exit 1
+          fi
+
+          if ! docker compose version >/dev/null 2>&1; then
+            echo "Docker Compose plugin is required but not available. Install docker-compose-plugin on the VM."
+            exit 1
+          fi
+
+          docker compose up -d --build --remove-orphans
+
           docker image prune -f
           REMOTE_SCRIPT
