@@ -65,6 +65,6 @@ jobs:
           EOF
 
           cd docker
-          docker compose up -d --build --remove-orphans
+          docker-compose up -d --build --remove-orphans
           docker image prune -f
           REMOTE_SCRIPT
