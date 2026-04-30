@@ -9,6 +9,18 @@ DEBUG = False
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS",default=["localhost", "127.0.0.1"])
 USE_HTTPS = env.bool("USE_HTTPS", default=False)
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS",default=[])
+PUBLIC_HOST = env("PUBLIC_HOST", default=env("PUBLIC_IP", default="")).strip()
+
+if PUBLIC_HOST:
+    if PUBLIC_HOST not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(PUBLIC_HOST)
+    http_origin = f"http://{PUBLIC_HOST}"
+    if http_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(http_origin)
+    if USE_HTTPS:
+        https_origin = f"https://{PUBLIC_HOST}"
+        if https_origin not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(https_origin)
 
 # Security settings for production
 SECURE_BROWSER_XSS_FILTER = True
