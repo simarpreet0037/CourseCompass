@@ -35,7 +35,7 @@ jobs:
           fi
 
           SSH_PORT="${VM_SSH_PORT:-22}"
-          APP_DIR="${VM_APP_DIR:-/opt/coursecompass}"
+          APP_DIR="${VM_APP_DIR:-$HOME/coursecompass}"
 
           mkdir -p ~/.ssh
           printf '%s\n' "${VM_SSH_KEY}" > ~/.ssh/id_ed25519
@@ -46,6 +46,7 @@ jobs:
           set -euo pipefail
 
           # Ensure app directory exists and has latest branch code.
+          mkdir -p "${APP_DIR}"
           if [ ! -d "${APP_DIR}/.git" ]; then
             git clone "https://github.com/${REPO}.git" "${APP_DIR}"
           fi
