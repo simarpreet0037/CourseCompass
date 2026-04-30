@@ -35,15 +35,18 @@ jobs:
           fi
 
           SSH_PORT="${VM_SSH_PORT:-22}"
-          APP_DIR="${VM_APP_DIR:-$HOME/coursecompass}"
+          APP_DIR="${VM_APP_DIR:-}"  # default resolved on VM
 
           mkdir -p ~/.ssh
           printf '%s\n' "${VM_SSH_KEY}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -p "${SSH_PORT}" -H "${VM_HOST}" >> ~/.ssh/known_hosts
 
-          ssh -p "${SSH_PORT}" "${VM_USER}@${VM_HOST}" "APP_DIR='${APP_DIR}' BRANCH_NAME='${BRANCH_NAME}' REPO='${REPO}' bash -s" << 'REMOTE_SCRIPT'
+          ssh -p "${SSH_PORT}" "${VM_USER}@${VM_HOST}" "BRANCH_NAME='${BRANCH_NAME}' REPO='${REPO}' REMOTE_APP_DIR='${APP_DIR}' bash -s" << 'REMOTE_SCRIPT'
           set -euo pipefail
+
+          # Resolve APP_DIR on the VM so $HOME is the VM user's home.
+          APP_DIR="${REMOTE_APP_DIR:-$HOME/coursecompass}"
 
           # Ensure app directory exists and has latest branch code.
           mkdir -p "${APP_DIR}"
