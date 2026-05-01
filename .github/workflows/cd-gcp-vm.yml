@@ -24,7 +24,7 @@ jobs:
           VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
           VM_SSH_PORT: ${{ secrets.VM_SSH_PORT }}
           VM_APP_DIR: ${{ secrets.VM_APP_DIR }}
-          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
           DJANGO_ENV: ${{ secrets.DJANGO_ENV }}
           ALLOWED_HOSTS: ${{ secrets.ALLOWED_HOSTS }}
           CSRF_TRUSTED_ORIGINS: ${{ secrets.CSRF_TRUSTED_ORIGINS }}
@@ -44,8 +44,14 @@ jobs:
             exit 1
           fi
 
-          if [ -z "${DJANGO_SECRET_KEY:-}" ] || [ -z "${GROQ_API_KEY:-}" ] || [ -z "${NEO4J_URI:-}" ] || [ -z "${NEO4J_USERNAME:-}" ] || [ -z "${NEO4J_PASSWORD:-}" ]; then
-            echo "Missing app env secrets. Required: DJANGO_SECRET_KEY, GROQ_API_KEY, NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD."
+          MISSING_APP_SECRETS=""
+          [ -z "${SECRET_KEY:-}" ] && MISSING_APP_SECRETS="${MISSING_APP_SECRETS} SECRET_KEY"
+          [ -z "${GROQ_API_KEY:-}" ] && MISSING_APP_SECRETS="${MISSING_APP_SECRETS} GROQ_API_KEY"
+          [ -z "${NEO4J_URI:-}" ] && MISSING_APP_SECRETS="${MISSING_APP_SECRETS} NEO4J_URI"
+          [ -z "${NEO4J_USERNAME:-}" ] && MISSING_APP_SECRETS="${MISSING_APP_SECRETS} NEO4J_USERNAME"
+          [ -z "${NEO4J_PASSWORD:-}" ] && MISSING_APP_SECRETS="${MISSING_APP_SECRETS} NEO4J_PASSWORD"
+          if [ -n "${MISSING_APP_SECRETS}" ]; then
+            echo "Missing app env secrets:${MISSING_APP_SECRETS}"
             exit 1
           fi
 
@@ -73,16 +79,16 @@ jobs:
 
           mkdir -p docker
           cat > docker/.env << EOF
-          SECRET_KEY=${DJANGO_SECRET_KEY}
-          DJANGO_ENV=${DJANGO_ENV:-production}
-          ALLOWED_HOSTS=${ALLOWED_HOSTS:-}
-          CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-}
-          USE_HTTPS=${USE_HTTPS:-false}
-          CHAT_RATE_LIMIT=${CHAT_RATE_LIMIT:-30}
-          GROQ_API_KEY=${GROQ_API_KEY}
-          NEO4J_URI=${NEO4J_URI}
-          NEO4J_USERNAME=${NEO4J_USERNAME}
-          NEO4J_PASSWORD=${NEO4J_PASSWORD}
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          DJANGO_ENV=${{ secrets.DJANGO_ENV || 'production' }}
+          ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+          CSRF_TRUSTED_ORIGINS=${{ secrets.CSRF_TRUSTED_ORIGINS }}
+          USE_HTTPS=${{ secrets.USE_HTTPS || 'false' }}
+          CHAT_RATE_LIMIT=${{ secrets.CHAT_RATE_LIMIT || '30' }}
+          GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}
+          NEO4J_URI=${{ secrets.NEO4J_URI }}
+          NEO4J_USERNAME=${{ secrets.NEO4J_USERNAME }}
+          NEO4J_PASSWORD=${{ secrets.NEO4J_PASSWORD }}
           EOF
           chmod 600 docker/.env
 

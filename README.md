@@ -120,7 +120,7 @@ docker-compose up --build
 For VM deployments, store production settings as separate GitHub Secrets (not a bundled blob):
 
 ```text
-DJANGO_SECRET_KEY
+SECRET_KEY
 DJANGO_ENV                # production
 ALLOWED_HOSTS             # e.g. your-domain.com,34.123.45.67
 CSRF_TRUSTED_ORIGINS      # e.g. https://your-domain.com,http://34.123.45.67
