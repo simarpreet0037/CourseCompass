@@ -24,28 +24,37 @@ jobs:
           VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
           VM_SSH_PORT: ${{ secrets.VM_SSH_PORT }}
           VM_APP_DIR: ${{ secrets.VM_APP_DIR }}
-          APP_PUBLIC_HOST: ${{ secrets.APP_PUBLIC_HOST }}
-          APP_PUBLIC_IP: ${{ secrets.APP_PUBLIC_IP }}
-          PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DJANGO_ENV: ${{ secrets.DJANGO_ENV }}
+          ALLOWED_HOSTS: ${{ secrets.ALLOWED_HOSTS }}
+          CSRF_TRUSTED_ORIGINS: ${{ secrets.CSRF_TRUSTED_ORIGINS }}
+          USE_HTTPS: ${{ secrets.USE_HTTPS }}
+          CHAT_RATE_LIMIT: ${{ secrets.CHAT_RATE_LIMIT }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          NEO4J_URI: ${{ secrets.NEO4J_URI }}
+          NEO4J_USERNAME: ${{ secrets.NEO4J_USERNAME }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
           BRANCH_NAME: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
 
-          if [ -z "${VM_HOST}" ] || [ -z "${VM_USER}" ] || [ -z "${VM_SSH_KEY}" ] || [ -z "${PROD_ENV_FILE}" ]; then
-            echo "Missing required secrets. Required: VM_HOST, VM_USER, VM_SSH_KEY, PROD_ENV_FILE"
+          if [ -z "${VM_HOST}" ] || [ -z "${VM_USER}" ] || [ -z "${VM_SSH_KEY}" ]; then
+            echo "Missing required SSH secrets. Required: VM_HOST, VM_USER, VM_SSH_KEY"
             exit 1
           fi
 
-          SSH_PORT="${VM_SSH_PORT:-22}"
-          APP_DIR="${VM_APP_DIR:-}"  # default resolved on VM
+          if [ -z "${DJANGO_SECRET_KEY:-}" ] || [ -z "${GROQ_API_KEY:-}" ] || [ -z "${NEO4J_URI:-}" ] || [ -z "${NEO4J_USERNAME:-}" ] || [ -z "${NEO4J_PASSWORD:-}" ]; then
+            echo "Missing app env secrets. Required: DJANGO_SECRET_KEY, GROQ_API_KEY, NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD."
+            exit 1
+          fi
 
           mkdir -p ~/.ssh
           printf '%s\n' "${VM_SSH_KEY}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -p "${SSH_PORT}" -H "${VM_HOST}" >> ~/.ssh/known_hosts
+          ssh-keyscan -p "${VM_SSH_PORT:-22}" -H "${VM_HOST}" >> ~/.ssh/known_hosts
 
-          ssh -p "${SSH_PORT}" "${VM_USER}@${VM_HOST}" "BRANCH_NAME='${BRANCH_NAME}' REPO='${REPO}' REMOTE_APP_DIR='${APP_DIR}' REMOTE_PUBLIC_HOST='${APP_PUBLIC_HOST}' REMOTE_PUBLIC_IP='${APP_PUBLIC_IP}' bash -s" << 'REMOTE_SCRIPT'
+          ssh -p "${VM_SSH_PORT:-22}" "${VM_USER}@${VM_HOST}" "BRANCH_NAME='${BRANCH_NAME}' REPO='${REPO}' REMOTE_APP_DIR='${VM_APP_DIR:-}' bash -s" << 'REMOTE_SCRIPT'
           set -euo pipefail
 
           # Resolve APP_DIR on the VM so $HOME is the VM user's home.
@@ -63,15 +72,19 @@ jobs:
           git reset --hard "origin/${BRANCH_NAME}"
 
           mkdir -p docker
-          cat > docker/.env << 'EOF'
-          ${{ secrets.PROD_ENV_FILE }}
+          cat > docker/.env << EOF
+          SECRET_KEY=${DJANGO_SECRET_KEY}
+          DJANGO_ENV=${DJANGO_ENV:-production}
+          ALLOWED_HOSTS=${ALLOWED_HOSTS:-}
+          CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-}
+          USE_HTTPS=${USE_HTTPS:-false}
+          CHAT_RATE_LIMIT=${CHAT_RATE_LIMIT:-30}
+          GROQ_API_KEY=${GROQ_API_KEY}
+          NEO4J_URI=${NEO4J_URI}
+          NEO4J_USERNAME=${NEO4J_USERNAME}
+          NEO4J_PASSWORD=${NEO4J_PASSWORD}
           EOF
           chmod 600 docker/.env
-
-          PUBLIC_HOST_VALUE="${REMOTE_PUBLIC_HOST:-${REMOTE_PUBLIC_IP:-}}"
-          if [ -n "${PUBLIC_HOST_VALUE}" ]; then
-            echo "PUBLIC_HOST=${PUBLIC_HOST_VALUE}" >> docker/.env
-          fi
 
           cd docker
           if ! command -v docker >/dev/null 2>&1; then
