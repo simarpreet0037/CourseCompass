@@ -52,7 +52,9 @@ Create a `.env` file in the project root:
 # Django
 SECRET_KEY=your-secret-key-here
 DJANGO_ENV=development  # or 'production'
-ALLOWED_HOSTS=localhost,127.0.0.1
+ALLOWED_HOSTS=localhost,127.0.0.1,34.123.45.67
+CSRF_TRUSTED_ORIGINS=http://34.123.45.67
+USE_HTTPS=false
 
 # Neo4j
 NEO4J_URI=neo4j+s://your-neo4j-uri
@@ -66,6 +68,24 @@ GROQ_API_KEY=your-groq-api-key
 # Rate limiting
 CHAT_RATE_LIMIT=30  # requests per minute
 ```
+
+## Deployment Troubleshooting (GCP VM)
+
+If you see `400 Bad Request` right after deploying, Django is usually rejecting the `Host` header.
+
+Check these first:
+
+```bash
+DJANGO_ENV=production
+ALLOWED_HOSTS=your-domain.com,<YOUR_VM_EXTERNAL_IP>
+CSRF_TRUSTED_ORIGINS=http://your-domain.com,http://<YOUR_VM_EXTERNAL_IP>
+```
+
+Notes:
+
+- `ALLOWED_HOSTS` must include the exact host users access.
+- `CSRF_TRUSTED_ORIGINS` must include scheme (`http://` or `https://`).
+- If you run behind HTTPS with a reverse proxy/load balancer, set `USE_HTTPS=true` only when Django is correctly receiving HTTPS/proxy headers.
 
 ### 2. Install Dependencies
 
@@ -93,6 +113,38 @@ python manage.py runserver
 ```bash
 cd docker
 docker-compose up --build
+```
+
+## GitHub Actions Deployment Secrets
+
+For VM deployments, store production settings as separate GitHub Secrets (not a bundled blob):
+
+```text
+DJANGO_SECRET_KEY
+DJANGO_ENV                # production
+ALLOWED_HOSTS             # e.g. your-domain.com,34.123.45.67
+CSRF_TRUSTED_ORIGINS      # e.g. https://your-domain.com,http://34.123.45.67
+USE_HTTPS                 # true or false
+CHAT_RATE_LIMIT           # e.g. 30
+
+GROQ_API_KEY
+NEO4J_URI
+NEO4J_USERNAME
+NEO4J_PASSWORD
+```
+
+Infra secrets remain separate from app settings:
+
+```text
+# GCP workflow
+GCE_KEY
+GCE_HOST
+GCE_USER
+
+# EC2 workflow
+EC2_KEY
+EC2_HOST
+EC2_USER
 ```
 
 ## Development

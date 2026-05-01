@@ -65,7 +65,7 @@ def cypher_prereqs_full(code: str, depth: int = 3) -> Dict:
     ORDER BY group_type, prereq_code
     """
 
-    res = run_query(query, {"code": code})
+    res = run_query(query, {"code": code, "max_rel_len": max_rel_len})
 
     if not res or "error" in res[0]:
         return {"target": {}, "prereqs": []}

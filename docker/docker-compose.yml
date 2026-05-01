@@ -12,9 +12,7 @@ services:
     ports:
       - "80:8000"
     env_file:
-      - .env
-    environment:
-      - DJANGO_ENV=production
+      - ../.env
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/chat/')"]
