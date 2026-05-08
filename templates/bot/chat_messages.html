@@ -1,11 +1,9 @@
-<div class="chat-message user">
-  <div class="chat-bubble user">
-    {{ user_message }}
-  </div>
+﻿<div class="chat-message user">
+  <div class="avatar user-av">You</div>
+  <div class="chat-bubble user">{{ user_message }}</div>
 </div>
 
 <div class="chat-message bot">
-  <div class="chat-bubble bot">
-    {{ bot_response|safe }}
-  </div>
+  <div class="avatar bot-av">CC</div>
+  <div class="chat-bubble bot">{{ bot_response|safe }}</div>
 </div>
