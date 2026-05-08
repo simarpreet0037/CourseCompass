@@ -1,167 +1,475 @@
+{% load static %}
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>{% if edit_mode %}Edit{% else %}Add{% endif %} Course</title>
-    <style>
-        body { font-family: sans-serif; padding: 20px; }
-        .group { margin-bottom: 10px; }
-        label { margin-right: 5px; }
-        input[type="text"], textarea { width: 400px; }
-        textarea { resize: vertical; }
-        button.remove-btn {
-            margin-left: 10px;
-            background: #d9534f;
-            color: white;
-            border: none;
-            padding: 3px 8px;
-            cursor: pointer;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% if edit_mode %}Edit{% else %}Add{% endif %} Course &mdash; CourseCompass</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #07070e;
+      --s1:         #0d0d18;
+      --s2:         #12121e;
+      --s3:         #19192a;
+      --s4:         #222236;
+      --amber:      #d97706;
+      --amber-lt:   #f59e0b;
+      --amber-dim:  #92500a;
+      --amber-glow: rgba(217,119,6,.28);
+      --violet:     #7c3aed;
+      --violet-lt:  #a78bfa;
+      --t1:         #f0f0f8;
+      --t2:         #7a7a9a;
+      --t3:         #3d3d58;
+      --border:     rgba(255,255,255,.07);
+      --border-2:   rgba(255,255,255,.13);
+    }
+
+    html, body { min-height: 100%; }
+
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--t1);
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,.03) 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none;
+    }
+
+    body::after {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 55% 45% at 0% 0%, rgba(217,119,6,.06), transparent 55%),
+        radial-gradient(ellipse 40% 38% at 100% 100%, rgba(124,58,237,.06), transparent 50%);
+      pointer-events: none;
+    }
+
+    /* ── Navbar ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      height: 54px;
+      background: rgba(7,7,14,.93);
+      backdrop-filter: blur(20px) saturate(1.5);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem;
+      position: relative;
+    }
+
+    nav::after {
+      content: '';
+      position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg,
+        rgba(217,119,6,.55) 0%,
+        rgba(124,58,237,.45) 60%,
+        transparent 100%);
+    }
+
+    .nav-logo {
+      display: flex; align-items: center; gap: .8rem;
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.05rem; font-weight: 700;
+      color: var(--t1); text-decoration: none;
+      letter-spacing: -.01em;
+    }
+
+    .logo-image {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+      display: block;
+      flex-shrink: 0;
+      filter: drop-shadow(0 4px 12px rgba(217,119,6,.18));
+    }
+
+    .nav-links { display: flex; gap: .45rem; align-items: center; }
+
+    .nav-btn {
+      padding: .35rem .85rem; border-radius: 7px;
+      font-size: .78rem; font-weight: 500;
+      text-decoration: none; border: none; cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      transition: all .17s;
+    }
+    .nav-btn.ghost { color: var(--t2); background: transparent; }
+    .nav-btn.ghost:hover { color: var(--t1); background: rgba(255,255,255,.05); }
+
+    /* ── Page ── */
+    .page {
+      position: relative; z-index: 1;
+      max-width: 720px; margin: 0 auto;
+      padding: 2.5rem 1.5rem 5rem;
+    }
+
+    .page-eyebrow {
+      font-size: .72rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .1em;
+      color: var(--amber); margin-bottom: .45rem;
+    }
+
+    .page-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.65rem; font-weight: 700;
+      letter-spacing: -.03em; color: var(--t1);
+      margin-bottom: 2rem;
+    }
+
+    /* ── Form card ── */
+    .form-card {
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(217,119,6,.06),
+        0 16px 60px rgba(0,0,0,.45);
+    }
+
+    .form-section {
+      padding: 1.5rem 1.75rem;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+    .form-section:last-child { border-bottom: none; }
+
+    /* Left accent bar on section header */
+    .section-label {
+      display: flex; align-items: center; gap: .6rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .section-label-bar {
+      width: 3px; height: 16px; border-radius: 2px;
+      background: linear-gradient(180deg, var(--amber), var(--violet));
+      flex-shrink: 0;
+    }
+
+    .section-label-text {
+      font-size: .72rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .09em;
+      color: var(--t2);
+    }
+
+    /* ── Fields ── */
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .form-row.single { grid-template-columns: 1fr; }
+
+    .field { display: flex; flex-direction: column; gap: .4rem; }
+
+    label {
+      font-size: .78rem; font-weight: 500;
+      color: var(--t2); letter-spacing: .01em;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select,
+    textarea {
+      background: var(--s3);
+      color: var(--t1);
+      border: 1px solid var(--border-2);
+      border-radius: 9px;
+      padding: .65rem .9rem;
+      font-size: .875rem;
+      font-family: 'DM Sans', sans-serif;
+      outline: none;
+      transition: border-color .18s, box-shadow .18s;
+      width: 100%;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: rgba(217,119,6,.5);
+      box-shadow: 0 0 0 3px rgba(217,119,6,.1);
+    }
+
+    textarea { resize: vertical; min-height: 80px; }
+    select option { background: #19192a; }
+    .errorlist { list-style: none; color: #f87171; font-size: .77rem; margin-top: .2rem; }
+
+    /* ── Prereq groups ── */
+    .prereq-groups-wrap { display: flex; flex-direction: column; gap: .65rem; }
+
+    .prereq-group {
+      background: var(--s3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .9rem 1rem;
+      display: flex; align-items: center; gap: .7rem; flex-wrap: wrap;
+    }
+
+    .prereq-group label {
+      white-space: nowrap; font-size: .78rem; color: var(--t3);
+    }
+
+    .prereq-group select { width: 90px; flex-shrink: 0; }
+    .prereq-group input[type="text"] { flex: 1; min-width: 180px; }
+
+    .btn-remove {
+      padding: .3rem .65rem; border-radius: 6px; border: none; cursor: pointer;
+      font-size: .76rem; font-weight: 500; font-family: 'DM Sans', sans-serif;
+      background: rgba(248,113,113,.1);
+      color: #f87171;
+      border: 1px solid rgba(248,113,113,.18);
+      transition: background .15s; flex-shrink: 0;
+    }
+    .btn-remove:hover { background: rgba(248,113,113,.2); }
+
+    .btn-add-group {
+      display: inline-flex; align-items: center; gap: .38rem;
+      margin-top: .6rem;
+      padding: .42rem .95rem; border-radius: 8px; border: none; cursor: pointer;
+      font-size: .8rem; font-weight: 500; font-family: 'DM Sans', sans-serif;
+      background: rgba(217,119,6,.09);
+      color: var(--amber-lt);
+      border: 1px solid rgba(217,119,6,.2);
+      transition: all .15s;
+    }
+    .btn-add-group:hover { background: rgba(217,119,6,.18); border-color: rgba(217,119,6,.35); }
+
+    /* ── Actions ── */
+    .form-actions {
+      padding: 1.25rem 1.75rem;
+      display: flex; gap: .7rem; align-items: center;
+      background: var(--s2);
+    }
+
+    .btn-submit {
+      padding: .7rem 2rem; border-radius: 10px; border: none; cursor: pointer;
+      font-size: .9rem; font-weight: 700; font-family: 'Outfit', sans-serif;
+      letter-spacing: -.01em;
+      background: var(--amber);
+      color: #07070e;
+      box-shadow: 0 2px 16px var(--amber-glow);
+      transition: transform .15s, box-shadow .15s, background .15s;
+    }
+    .btn-submit:hover {
+      background: var(--amber-lt);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 24px var(--amber-glow);
+    }
+    .btn-submit:active { transform: translateY(0); }
+
+    .btn-cancel {
+      padding: .7rem 1.25rem; border-radius: 10px;
+      font-size: .875rem; font-weight: 500; font-family: 'DM Sans', sans-serif;
+      text-decoration: none; color: var(--t2);
+      background: rgba(255,255,255,.04); border: 1px solid var(--border);
+      transition: color .15s, background .15s;
+    }
+    .btn-cancel:hover { color: var(--t1); background: rgba(255,255,255,.07); }
+  </style>
 </head>
 <body>
-    <h1>{% if edit_mode %}Edit{% else %}Add{% endif %} a Course</h1>
 
-    <form method="post">
+  <nav>
+    <a href="/" class="nav-logo">
+      <img src="{% static 'branding/logo.png' %}" alt="CourseCompass logo" class="logo-image">
+      CourseCompass
+    </a>
+    <div class="nav-links">
+      <a href="{% url 'view_courses' %}" class="nav-btn ghost">Course Graph</a>
+      <a href="{% url 'bot:chat_page' %}" class="nav-btn ghost">Chat</a>
+    </div>
+  </nav>
+
+  <div class="page">
+    <div class="page-eyebrow">{% if edit_mode %}Editing{% else %}New Course{% endif %}</div>
+    <h1 class="page-title">{% if edit_mode %}Edit Course{% else %}Add a Course{% endif %}</h1>
+
+    <div class="form-card">
+      <form method="post">
         {% csrf_token %}
-        {{ form.non_field_errors }}
-        {{ form.code.label }}: {{ form.code.errors }} {{ form.code }}<br>
-        {{ form.title.label }}: {{ form.title.errors }} {{ form.title }}<br>
-        {{ form.credits.label }}: {{ form.credits.errors }} {{ form.credits }}<br>
-        {{ form.level.label }}: {{ form.level.errors }} {{ form.level }}<br>
-        {{ form.description.label }}: {{ form.description.errors }} {{ form.description }}<br><br>
 
-        <h3>Required Prerequisite Groups</h3>
-        <div id="required-groups">
+        <!-- Basic Info -->
+        <div class="form-section">
+          <div class="section-label">
+            <div class="section-label-bar"></div>
+            <span class="section-label-text">Course Information</span>
+          </div>
+          {{ form.non_field_errors }}
+
+          <div class="form-row" style="margin-bottom:1rem">
+            <div class="field">
+              <label>{{ form.code.label }}</label>
+              {{ form.code.errors }}
+              {{ form.code }}
+            </div>
+            <div class="field">
+              <label>{{ form.title.label }}</label>
+              {{ form.title.errors }}
+              {{ form.title }}
+            </div>
+          </div>
+
+          <div class="form-row" style="margin-bottom:1rem">
+            <div class="field">
+              <label>{{ form.credits.label }}</label>
+              {{ form.credits.errors }}
+              {{ form.credits }}
+            </div>
+            <div class="field">
+              <label>{{ form.level.label }}</label>
+              {{ form.level.errors }}
+              {{ form.level }}
+            </div>
+          </div>
+
+          <div class="field">
+            <label>{{ form.description.label }}</label>
+            {{ form.description.errors }}
+            {{ form.description }}
+          </div>
+        </div>
+
+        <!-- Required Prerequisites -->
+        <div class="form-section">
+          <div class="section-label">
+            <div class="section-label-bar"></div>
+            <span class="section-label-text">Required Prerequisite Groups</span>
+          </div>
+          <div class="prereq-groups-wrap" id="required-groups">
             {% for group in required_groups %}
-            <div class="group">
-                <label>Group Type:</label>
-                <select name="required_group_type_{{ forloop.counter0 }}">
-                    <option value="AND" {% if group.type == "AND" %}selected{% endif %}>AND</option>
-                    <option value="OR" {% if group.type == "OR" %}selected{% endif %}>OR</option>
-                </select>
-                <input type="text" name="required_courses_{{ forloop.counter0 }}" value="{{ group.courses|join:', ' }}">
-                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
+            <div class="prereq-group">
+              <label>Type:</label>
+              <select name="required_group_type_{{ forloop.counter0 }}">
+                <option value="AND" {% if group.type == "AND" %}selected{% endif %}>AND</option>
+                <option value="OR"  {% if group.type == "OR"  %}selected{% endif %}>OR</option>
+              </select>
+              <input type="text" name="required_courses_{{ forloop.counter0 }}" value="{{ group.courses|join:', ' }}" placeholder="e.g., MATH 110, MATH 105">
+              <button type="button" class="btn-remove" onclick="removeGroup(this)">Remove</button>
             </div>
             {% empty %}
-            <div class="group">
-                <label>Group Type:</label>
-                <select name="required_group_type_0">
-                    <option value="AND">AND</option>
-                    <option value="OR">OR</option>
-                </select>
-                <input type="text" name="required_courses_0" placeholder="e.g., MATH 110, MATH 105">
-                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
+            <div class="prereq-group">
+              <label>Type:</label>
+              <select name="required_group_type_0">
+                <option value="AND">AND</option>
+                <option value="OR">OR</option>
+              </select>
+              <input type="text" name="required_courses_0" placeholder="e.g., MATH 110, MATH 105">
+              <button type="button" class="btn-remove" onclick="removeGroup(this)">Remove</button>
             </div>
             {% endfor %}
+          </div>
+          <button type="button" class="btn-add-group" onclick="addRequiredGroup()">+ Add Group</button>
         </div>
-        <button type="button" onclick="addRequiredGroup()">+ Add Required Group</button>
 
-        <h3>Recommended Prerequisite Groups</h3>
-        <div id="recommended-groups">
+        <!-- Recommended Prerequisites -->
+        <div class="form-section">
+          <div class="section-label">
+            <div class="section-label-bar"></div>
+            <span class="section-label-text">Recommended Prerequisite Groups</span>
+          </div>
+          <div class="prereq-groups-wrap" id="recommended-groups">
             {% for group in recommended_groups %}
-            <div class="group">
-                <label>Group Type:</label>
-                <select name="recommended_group_type_{{ forloop.counter0 }}">
-                    <option value="AND" {% if group.type == "AND" %}selected{% endif %}>AND</option>
-                    <option value="OR" {% if group.type == "OR" %}selected{% endif %}>OR</option>
-                </select>
-                <input type="text" name="recommended_courses_{{ forloop.counter0 }}" value="{{ group.courses|join:', ' }}">
-                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
+            <div class="prereq-group">
+              <label>Type:</label>
+              <select name="recommended_group_type_{{ forloop.counter0 }}">
+                <option value="AND" {% if group.type == "AND" %}selected{% endif %}>AND</option>
+                <option value="OR"  {% if group.type == "OR"  %}selected{% endif %}>OR</option>
+              </select>
+              <input type="text" name="recommended_courses_{{ forloop.counter0 }}" value="{{ group.courses|join:', ' }}" placeholder="e.g., STAT 160, STAT 200">
+              <button type="button" class="btn-remove" onclick="removeGroup(this)">Remove</button>
             </div>
             {% empty %}
-            <div class="group">
-                <label>Group Type:</label>
-                <select name="recommended_group_type_0">
-                    <option value="AND">AND</option>
-                    <option value="OR">OR</option>
-                </select>
-                <input type="text" name="recommended_courses_0" placeholder="e.g., STAT 160, STAT 200">
-                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
+            <div class="prereq-group">
+              <label>Type:</label>
+              <select name="recommended_group_type_0">
+                <option value="AND">AND</option>
+                <option value="OR">OR</option>
+              </select>
+              <input type="text" name="recommended_courses_0" placeholder="e.g., STAT 160, STAT 200">
+              <button type="button" class="btn-remove" onclick="removeGroup(this)">Remove</button>
             </div>
             {% endfor %}
+          </div>
+          <button type="button" class="btn-add-group" onclick="addRecommendedGroup()">+ Add Group</button>
         </div>
-        <button type="button" onclick="addRecommendedGroup()">+ Add Recommended Group</button>
 
-        <h3>Custom Prerequisite Groups</h3>
-        <div id="custom-groups">
+        <!-- Custom Prerequisites -->
+        <div class="form-section">
+          <div class="section-label">
+            <div class="section-label-bar"></div>
+            <span class="section-label-text">Custom Prerequisite Groups</span>
+          </div>
+          <div class="prereq-groups-wrap" id="custom-groups">
             {% for group in custom_groups %}
-            <div class="group">
-                <label>Custom Type:</label>
-                <input type="text" name="custom_group_type_{{ forloop.counter0 }}" value="{{ group.type }}" placeholder="e.g., Corequisite">
-                <input type="text" name="custom_courses_{{ forloop.counter0 }}" value="{{ group.courses|join:', ' }}" placeholder="e.g., CS200, CS210">
-                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
+            <div class="prereq-group">
+              <label>Type:</label>
+              <input type="text" name="custom_group_type_{{ forloop.counter0 }}" value="{{ group.type }}" placeholder="e.g., Corequisite">
+              <input type="text" name="custom_courses_{{ forloop.counter0 }}" value="{{ group.courses|join:', ' }}" placeholder="e.g., CS200, CS210">
+              <button type="button" class="btn-remove" onclick="removeGroup(this)">Remove</button>
             </div>
             {% empty %}
-            <div class="group">
-                <label>Custom Type:</label>
-                <input type="text" name="custom_group_type_0" placeholder="e.g., Corequisite">
-                <input type="text" name="custom_courses_0" placeholder="e.g., CS200, CS210">
-                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
+            <div class="prereq-group">
+              <label>Type:</label>
+              <input type="text" name="custom_group_type_0" placeholder="e.g., Corequisite">
+              <input type="text" name="custom_courses_0" placeholder="e.g., CS200, CS210">
+              <button type="button" class="btn-remove" onclick="removeGroup(this)">Remove</button>
             </div>
             {% endfor %}
+          </div>
+          <button type="button" class="btn-add-group" onclick="addCustomGroup()">+ Add Group</button>
         </div>
-        <button type="button" onclick="addCustomGroup()">+ Add Custom Group</button>
 
-        <br><br>
-        <button type="submit">{% if edit_mode %}Update{% else %}Add{% endif %} Course</button>
-    </form>
+        <!-- Actions -->
+        <div class="form-actions">
+          <button type="submit" class="btn-submit">
+            {% if edit_mode %}Update Course{% else %}Add Course{% endif %}
+          </button>
+          <a href="{% url 'view_courses' %}" class="btn-cancel">Cancel</a>
+        </div>
 
-    <script>
-        let reqIndex = {{ required_groups|length|default:0 }};
-        let recIndex = {{ recommended_groups|length|default:0 }};
-        let customIndex = {{ custom_groups|length|default:0 }};
+      </form>
+    </div>
+  </div>
 
-        function removeGroup(button) {
-            button.closest('.group').remove();
-        }
+  <script>
+    var reqIndex    = {{ required_groups|length|default:1 }};
+    var recIndex    = {{ recommended_groups|length|default:1 }};
+    var customIndex = {{ custom_groups|length|default:1 }};
 
-        function addRequiredGroup() {
-            const container = document.getElementById("required-groups");
-            const div = document.createElement("div");
-            div.className = "group";
-            div.innerHTML = `
-                <label>Group Type:</label>
-                <select name="required_group_type_${reqIndex}">
-                    <option value="AND">AND</option>
-                    <option value="OR">OR</option>
-                </select>
-                <input type="text" name="required_courses_${reqIndex}" placeholder="e.g., MATH 110, MATH 105">
-                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
-            `;
-            container.appendChild(div);
-            reqIndex++;
-        }
+    function removeGroup(btn) { btn.closest('.prereq-group').remove(); }
 
-        function addRecommendedGroup() {
-            const container = document.getElementById("recommended-groups");
-            const div = document.createElement("div");
-            div.className = "group";
-            div.innerHTML = `
-                <label>Group Type:</label>
-                <select name="recommended_group_type_${recIndex}">
-                    <option value="AND">AND</option>
-                    <option value="OR">OR</option>
-                </select>
-                <input type="text" name="recommended_courses_${recIndex}" placeholder="e.g., STAT 160, STAT 200">
-                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
-            `;
-            container.appendChild(div);
-            recIndex++;
-        }
+    function addRequiredGroup() {
+      var c = document.getElementById("required-groups");
+      var d = document.createElement("div");
+      d.className = "prereq-group";
+      d.innerHTML = '<label>Type:</label>'
+        + '<select name="required_group_type_' + reqIndex + '"><option value="AND">AND</option><option value="OR">OR</option></select>'
+        + '<input type="text" name="required_courses_' + reqIndex + '" placeholder="e.g., MATH 110, MATH 105">'
+        + '<button type="button" class="btn-remove" onclick="removeGroup(this)">Remove</button>';
+      c.appendChild(d); reqIndex++;
+    }
 
-        function addCustomGroup() {
-            const container = document.getElementById("custom-groups");
-            const div = document.createElement("div");
-            div.className = "group";
-            div.innerHTML = `
-                <label>Custom Type:</label>
-                <input type="text" name="custom_group_type_${customIndex}" placeholder="e.g., Corequisite">
-                <input type="text" name="custom_courses_${customIndex}" placeholder="e.g., CS200, CS210">
-                <button type="button" class="remove-btn" onclick="removeGroup(this)">Remove</button>
-            `;
-            container.appendChild(div);
-            customIndex++;
-        }
-    </script>
+    function addRecommendedGroup() {
+      var c = document.getElementById("recommended-groups");
+      var d = document.createElement("div");
+      d.className = "prereq-group";
+      d.innerHTML = '<label>Type:</label>'
+        + '<select name="recommended_group_type_' + recIndex + '"><option value="AND">AND</option><option value="OR">OR</option></select>'
+        + '<input type="text" name="recommended_courses_' + recIndex + '" placeholder="e.g., STAT 160, STAT 200">'
+        + '<button type="button" class="btn-remove" onclick="removeGroup(this)">Remove</button>';
+      c.appendChild(d); recIndex++;
+    }
+
+    function addCustomGroup() {
+      var c = document.getElementById("custom-groups");
+      var d = document.createElement("div");
+      d.className = "prereq-group";
+      d.innerHTML = '<label>Type:</label>'
+        + '<input type="text" name="custom_group_type_' + customIndex + '" placeholder="e.g., Corequisite">'
+        + '<input type="text" name="custom_courses_' + customIndex + '" placeholder="e.g., CS200, CS210">'
+        + '<button type="button" class="btn-remove" onclick="removeGroup(this)">Remove</button>';
+      c.appendChild(d); customIndex++;
+    }
+  </script>
 </body>
 </html>

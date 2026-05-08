@@ -1,135 +1,456 @@
+{% load static %}
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Course Prerequisites Graph</title>
-    <script type="text/javascript" src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
-    <link href="https://unpkg.com/vis-network@9.1.2/styles/vis-network.min.css" rel="stylesheet" />
-    <link href="https://unpkg.com/vis-network@9.1.2/styles/vis-network.min.css" rel="stylesheet" />
-    <style>
-        #mynetwork {
-            width: 100%;
-            height: 600px;
-            border: 1px solid lightgray;
-            margin-bottom: 20px;
-        }
-        table {
-            border-collapse: collapse;
-            width: 100%;
-        }
-        th, td {
-            padding: 8px;
-            border: 1px solid #ccc;
-            text-align: left;
-            vertical-align: top;
-        }
-        a {
-            text-decoration: none;
-            color: #007bff;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
-        .actions a {
-            margin-right: 10px;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CourseCompass &mdash; Course Management</title>
+  <script src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
+  <link href="https://unpkg.com/vis-network@9.1.2/styles/vis-network.min.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        /* Truncate description to one line with ellipsis */
-        .desc-cell {
-            max-width: 400px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            cursor: pointer;
-        }
+    :root {
+      --bg:         #07070e;
+      --s1:         #0d0d18;
+      --s2:         #12121e;
+      --s3:         #19192a;
+      --s4:         #222236;
+      --amber:      #d97706;
+      --amber-lt:   #f59e0b;
+      --amber-dim:  #92500a;
+      --amber-glow: rgba(217,119,6,.28);
+      --violet:     #7c3aed;
+      --violet-lt:  #a78bfa;
+      --t1:         #f0f0f8;
+      --t2:         #7a7a9a;
+      --t3:         #3d3d58;
+      --border:     rgba(255,255,255,.07);
+      --border-2:   rgba(255,255,255,.13);
+      --danger:     #f87171;
+    }
 
-        /* Expanded description */
-        .desc-cell.expanded {
-            white-space: normal;
-            overflow: visible;
-            text-overflow: unset;
-            background-color: #f9f9f9;
-            padding: 5px;
-            border-radius: 3px;
-        }
-    </style>
+    html, body { min-height: 100%; }
+
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--t1);
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,.03) 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none;
+    }
+
+    body::after {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 55% 45% at 0% 0%, rgba(217,119,6,.06), transparent 55%),
+        radial-gradient(ellipse 40% 38% at 100% 100%, rgba(124,58,237,.06), transparent 50%);
+      pointer-events: none;
+    }
+
+    /* ── Navbar ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      height: 54px;
+      background: rgba(7,7,14,.93);
+      backdrop-filter: blur(20px) saturate(1.5);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem;
+      position: relative;
+    }
+
+    nav::after {
+      content: '';
+      position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg,
+        rgba(217,119,6,.55) 0%,
+        rgba(124,58,237,.45) 60%,
+        transparent 100%);
+    }
+
+    .nav-logo {
+      display: flex; align-items: center; gap: .8rem;
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.05rem; font-weight: 700;
+      color: var(--t1); text-decoration: none;
+      letter-spacing: -.01em;
+    }
+
+    .logo-image {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+      display: block;
+      flex-shrink: 0;
+      filter: drop-shadow(0 4px 12px rgba(217,119,6,.18));
+    }
+
+    .nav-links { display: flex; align-items: center; gap: .45rem; }
+
+    .nav-btn {
+      padding: .35rem .85rem; border-radius: 7px;
+      font-size: .78rem; font-weight: 500;
+      text-decoration: none; border: none; cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      transition: all .17s; line-height: 1;
+    }
+    .nav-btn.ghost { color: var(--t2); background: transparent; }
+    .nav-btn.ghost:hover { color: var(--t1); background: rgba(255,255,255,.05); }
+    .nav-btn.amber {
+      background: var(--amber);
+      color: #07070e; font-weight: 700;
+      font-family: 'Outfit', sans-serif;
+      box-shadow: 0 2px 12px var(--amber-glow);
+    }
+    .nav-btn.amber:hover {
+      background: var(--amber-lt);
+      box-shadow: 0 3px 18px var(--amber-glow);
+    }
+
+    /* ── Page layout ── */
+    .page {
+      position: relative; z-index: 1;
+      max-width: 1200px; margin: 0 auto;
+      padding: 2.5rem 2rem 5rem;
+    }
+
+    /* ── Page header ── */
+    .page-header {
+      margin-bottom: 2.25rem;
+    }
+
+    .page-eyebrow {
+      font-size: .72rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .1em;
+      color: var(--amber);
+      margin-bottom: .45rem;
+    }
+
+    .page-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.8rem; font-weight: 700;
+      letter-spacing: -.03em; color: var(--t1);
+      line-height: 1.15;
+    }
+
+    .page-title span {
+      color: var(--t2);
+      font-size: 1rem; font-weight: 400;
+      font-family: 'DM Sans', sans-serif;
+      letter-spacing: 0;
+      display: block; margin-top: .2rem;
+    }
+
+    /* ── Graph card ── */
+    .graph-card {
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      margin-bottom: 2rem;
+      box-shadow: 0 8px 40px rgba(0,0,0,.4);
+    }
+
+    .card-header {
+      padding: .9rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: .75rem;
+      background: var(--s2);
+    }
+
+    .card-header-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--amber);
+      box-shadow: 0 0 6px var(--amber-glow);
+      flex-shrink: 0;
+    }
+
+    .card-header h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: .9rem; font-weight: 600;
+      letter-spacing: -.01em; color: var(--t1);
+    }
+
+    #mynetwork {
+      width: 100%;
+      height: 460px;
+      background: var(--bg);
+    }
+
+    /* ── Table card ── */
+    .table-card {
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 8px 40px rgba(0,0,0,.4);
+    }
+
+    .table-card-header {
+      padding: .9rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--s2);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead tr {
+      background: var(--s2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      padding: .75rem 1.25rem;
+      text-align: left;
+      font-size: .7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--t3);
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background .14s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(217,119,6,.04); }
+
+    td {
+      padding: .85rem 1.25rem;
+      font-size: .875rem;
+      color: var(--t1);
+      vertical-align: middle;
+    }
+
+    .course-code {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600; font-size: .8rem;
+      color: var(--amber-lt);
+      background: rgba(217,119,6,.1);
+      border: 1px solid rgba(217,119,6,.22);
+      border-radius: 6px;
+      padding: .2rem .55rem;
+      display: inline-block;
+      letter-spacing: -.01em;
+    }
+
+    .course-title {
+      font-weight: 500; font-size: .875rem; color: var(--t1);
+    }
+
+    .desc-cell {
+      max-width: 340px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+      color: var(--t2);
+      font-size: .82rem;
+      transition: color .15s;
+    }
+    .desc-cell:hover { color: var(--t1); }
+    .desc-cell.expanded {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: unset;
+    }
+
+    .prereq-tag {
+      display: inline-block;
+      font-size: .72rem; font-weight: 500;
+      background: rgba(124,58,237,.1);
+      border: 1px solid rgba(124,58,237,.22);
+      color: var(--violet-lt);
+      border-radius: 5px;
+      padding: .14rem .48rem;
+      margin: .1rem .1rem 0 0;
+      font-family: 'Outfit', sans-serif;
+      letter-spacing: -.01em;
+    }
+
+    .action-row { display: flex; gap: .4rem; align-items: center; }
+
+    .action-link {
+      font-size: .78rem; font-weight: 500;
+      text-decoration: none;
+      padding: .28rem .65rem;
+      border-radius: 6px;
+      transition: all .15s;
+      display: inline-block;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .action-link.edit {
+      color: var(--amber-lt);
+      background: rgba(217,119,6,.09);
+      border: 1px solid rgba(217,119,6,.2);
+    }
+    .action-link.edit:hover {
+      background: rgba(217,119,6,.18);
+      border-color: rgba(217,119,6,.35);
+    }
+    .action-link.delete {
+      color: var(--danger);
+      background: rgba(248,113,113,.08);
+      border: 1px solid rgba(248,113,113,.18);
+    }
+    .action-link.delete:hover { background: rgba(248,113,113,.16); }
+
+    .empty-row td {
+      text-align: center;
+      padding: 3rem;
+      color: var(--t3);
+      font-size: .875rem;
+    }
+    .empty-row td a { color: var(--amber-lt); text-decoration: none; }
+    .empty-row td a:hover { text-decoration: underline; }
+
+    .none-text { color: var(--t3); font-size: .8rem; }
+  </style>
 </head>
 <body>
-    <h2>Course Prerequisites Graph</h2>
-    <a href="{% url 'add_course' %}">Add another course</a>
-    <div id="mynetwork"></div>
 
-    <script type="text/javascript">
-        // Add tooltips with course description
-        const rawNodes = {{ nodes|safe }};
-        const nodesWithTooltips = rawNodes.map(n => ({
-            id: n.id,
-            label: n.label,
-            title: n.description ? `<strong>${n.id}</strong><br>${n.description.replace(/"/g, '&quot;')}` : `<strong>${n.id}</strong>`
-        }));
+  <nav>
+    <a href="/" class="nav-logo">
+      <img src="{% static 'branding/logo.png' %}" alt="CourseCompass logo" class="logo-image">
+      CourseCompass
+    </a>
+    <div class="nav-links">
+      <a href="{% url 'bot:chat_page' %}" class="nav-btn ghost">Chat</a>
+      <a href="{% url 'add_course' %}" class="nav-btn amber">+ Add Course</a>
+    </div>
+  </nav>
 
-        const nodes = new vis.DataSet(nodesWithTooltips);
-        const edges = new vis.DataSet({{ edges|safe }});
+  <div class="page">
 
-        const container = document.getElementById('mynetwork');
-        const data = { nodes: nodes, edges: edges };
-        const options = {
-            layout: {
-                hierarchical: {
-                    direction: "UD",   // Up to Down
-                    sortMethod: "directed"
-                }
-            },
-            edges: {
-                arrows: { to: { enabled: true } },
-                smooth: false
-            },
-            interaction: {
-                hover: true,
-                tooltipDelay: 100
-            },
-            physics: false
-        };
-        const network = new vis.Network(container, data, options);
-    </script>
+    <div class="page-header">
+      <div class="page-eyebrow">Management</div>
+      <h1 class="page-title">
+        Course Graph
+        <span>Interactive prerequisite map &amp; course registry</span>
+      </h1>
+    </div>
 
-    <h3>Course List</h3>
-    <table>
+    <div class="graph-card">
+      <div class="card-header">
+        <div class="card-header-dot"></div>
+        <h2>Prerequisite Network</h2>
+      </div>
+      <div id="mynetwork"></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-card-header">
+        <div style="display:flex;align-items:center;gap:.75rem">
+          <div class="card-header-dot"></div>
+          <h2 style="font-family:'Outfit',sans-serif;font-size:.9rem;font-weight:600;letter-spacing:-.01em">All Courses</h2>
+        </div>
+      </div>
+      <table>
         <thead>
-            <tr>
-                <th>Course Code</th>
-                <th>Title</th>
-                <th>Description</th>
-                <th>Prerequisites</th>
-                <th>Actions</th>
-            </tr>
+          <tr>
+            <th>Code</th>
+            <th>Title</th>
+            <th>Description</th>
+            <th>Prerequisites</th>
+            <th>Actions</th>
+          </tr>
         </thead>
         <tbody>
-            {% for course in courses %}
-            <tr>
-                <td>{{ course.course_code }}</td>
-                <td>{{ course.title }}</td>
-                <td class="desc-cell" title="Click to expand/collapse">{{ course.description }}</td>
-                <td>{{ course.prerequisites|join:", " }}</td>
-                <td class="actions">
-                    <a href="{% url 'edit_course' course.course_code %}">Edit</a>
-                    <a href="{% url 'delete_course' course.course_code %}" onclick="return confirm('Are you sure you want to delete {{ course.course_code }}?');">Delete</a>
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="5">No courses found.</td>
-            </tr>
-            {% endfor %}
+          {% for course in courses %}
+          <tr>
+            <td><span class="course-code">{{ course.course_code }}</span></td>
+            <td class="course-title">{{ course.title }}</td>
+            <td class="desc-cell" title="Click to expand">{{ course.description }}</td>
+            <td>
+              {% for prereq in course.prerequisites %}
+                <span class="prereq-tag">{{ prereq }}</span>
+              {% empty %}
+                <span class="none-text">None</span>
+              {% endfor %}
+            </td>
+            <td>
+              <div class="action-row">
+                <a href="{% url 'edit_course' course.course_code %}" class="action-link edit">Edit</a>
+                <a href="{% url 'delete_course' course.course_code %}" class="action-link delete"
+                   onclick="return confirm('Delete {{ course.course_code }}?')">Delete</a>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr class="empty-row">
+            <td colspan="5">No courses yet. <a href="{% url 'add_course' %}">Add the first one &rarr;</a></td>
+          </tr>
+          {% endfor %}
         </tbody>
-    </table>
+      </table>
+    </div>
 
-    <script>
-        // Toggle expand/collapse for course descriptions
-        document.querySelectorAll('.desc-cell').forEach(cell => {
-            cell.addEventListener('click', () => {
-                cell.classList.toggle('expanded');
-            });
-        });
-    </script>
+  </div>
+
+  <script>
+    var rawNodes = {{ nodes|safe }};
+    var nodesWithTooltips = rawNodes.map(function(n) {
+      return {
+        id: n.id,
+        label: n.label,
+        title: n.description
+          ? '<strong style="color:#f0f0f8">' + n.id + '</strong><br><span style="color:#7a7a9a;font-size:12px">' + String(n.description).replace(/"/g, '&quot;') + '</span>'
+          : '<strong style="color:#f0f0f8">' + n.id + '</strong>',
+        color: {
+          background: '#19192a',
+          border: '#d97706',
+          highlight: { background: '#222236', border: '#f59e0b' },
+          hover:     { background: '#222236', border: '#f59e0b' }
+        },
+        font: { color: '#f0f0f8', size: 13, face: 'DM Sans, sans-serif' }
+      };
+    });
+
+    var nodes = new vis.DataSet(nodesWithTooltips);
+    var edges = new vis.DataSet({{ edges|safe }});
+
+    var container = document.getElementById('mynetwork');
+    var network = new vis.Network(container, { nodes: nodes, edges: edges }, {
+      layout: {
+        hierarchical: {
+          direction: "UD",
+          sortMethod: "directed",
+          levelSeparation: 100,
+          nodeSpacing: 160
+        }
+      },
+      edges: {
+        arrows: { to: { enabled: true, scaleFactor: .65 } },
+        smooth: false,
+        color: { color: '#3d3d58', highlight: '#d97706', hover: '#f59e0b' }
+      },
+      nodes: {
+        shape: 'box',
+        borderWidth: 1,
+        borderWidthSelected: 2,
+        margin: { top: 8, bottom: 8, left: 14, right: 14 },
+        shadow: { enabled: true, color: 'rgba(0,0,0,.5)', size: 10, x: 0, y: 5 }
+      },
+      interaction: { hover: true, tooltipDelay: 80 },
+      physics: false
+    });
+
+    document.querySelectorAll('.desc-cell').forEach(function(cell) {
+      cell.addEventListener('click', function() { this.classList.toggle('expanded'); });
+    });
+  </script>
 </body>
 </html>
