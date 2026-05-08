@@ -11,6 +11,11 @@ USE_HTTPS = env.bool("USE_HTTPS", default=False)
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS",default=[])
 PUBLIC_HOST = env("PUBLIC_HOST", default=env("PUBLIC_IP", default="")).strip()
 
+# Always allow internal probe hosts used by container healthchecks.
+for internal_host in ["localhost", "127.0.0.1"]:
+    if internal_host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(internal_host)
+
 if PUBLIC_HOST:
     if PUBLIC_HOST not in ALLOWED_HOSTS:
         ALLOWED_HOSTS.append(PUBLIC_HOST)
