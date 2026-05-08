@@ -38,6 +38,7 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          trap 'echo "Local deploy failed at line ${LINENO}. Command: ${BASH_COMMAND}"' ERR
 
           if [ -z "${VM_HOST}" ] || [ -z "${VM_USER}" ] || [ -z "${VM_SSH_KEY}" ]; then
             echo "Missing required SSH secrets. Required: VM_HOST, VM_USER, VM_SSH_KEY"
@@ -58,21 +59,30 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "${VM_SSH_KEY}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -p "${VM_SSH_PORT:-22}" -H "${VM_HOST}" >> ~/.ssh/known_hosts
+          echo "Preparing SSH known_hosts entry for ${VM_HOST}:${VM_SSH_PORT:-22}"
+          if ! ssh-keyscan -p "${VM_SSH_PORT:-22}" -H "${VM_HOST}" >> ~/.ssh/known_hosts; then
+            echo "Failed to fetch SSH host key from ${VM_HOST}:${VM_SSH_PORT:-22}"
+            exit 1
+          fi
 
+          echo "Starting remote deployment on ${VM_HOST}"
           ssh -p "${VM_SSH_PORT:-22}" "${VM_USER}@${VM_HOST}" "BRANCH_NAME='${BRANCH_NAME}' REPO='${REPO}' REMOTE_APP_DIR='${VM_APP_DIR:-}' bash -s" << 'REMOTE_SCRIPT'
           set -euo pipefail
+          trap 'echo "Remote deploy failed at line ${LINENO}. Command: ${BASH_COMMAND}"' ERR
 
           # Resolve APP_DIR on the VM so $HOME is the VM user's home.
           APP_DIR="${REMOTE_APP_DIR:-$HOME/coursecompass}"
+          echo "Using APP_DIR=${APP_DIR}"
 
           # Ensure app directory exists and has latest branch code.
           mkdir -p "${APP_DIR}"
           if [ ! -d "${APP_DIR}/.git" ]; then
+            echo "Cloning repository into ${APP_DIR}"
             git clone "https://github.com/${REPO}.git" "${APP_DIR}"
           fi
 
           cd "${APP_DIR}"
+          echo "Updating code to branch ${BRANCH_NAME}"
           git fetch --prune origin
           git checkout "${BRANCH_NAME}"
           git reset --hard "origin/${BRANCH_NAME}"
@@ -93,6 +103,7 @@ jobs:
           chmod 600 docker/.env
 
           cd docker
+          echo "Validating Docker runtime on VM"
           if ! command -v docker >/dev/null 2>&1; then
             echo "Docker is not installed or not in PATH on the VM."
             exit 1
@@ -103,7 +114,29 @@ jobs:
             exit 1
           fi
 
+          echo "Starting containers"
           docker compose up -d --build --remove-orphans
+
+          cd "${APP_DIR}"
+          mkdir -p logs
+
+          if ! command -v crontab >/dev/null 2>&1; then
+            echo "crontab is not available on the VM. Install cron to enable automated Neo4j keepalive."
+            exit 1
+          fi
+
+          DOCKER_BIN="$(command -v docker)"
+          CRON_MARKER="# coursecompass-neo4j-ping"
+          CRON_SCHEDULE="0 */4 * * *"
+          CRON_COMMAND="/bin/bash -lc 'cd ${APP_DIR}/docker && ${DOCKER_BIN} compose exec -T web python manage.py ping_database --once >> ${APP_DIR}/logs/neo4j-ping.log 2>&1'"
+          TMP_CRON="$(mktemp)"
+
+          crontab -l 2>/dev/null | grep -F -v "${CRON_MARKER}" > "${TMP_CRON}" || true
+          printf "%s %s %s\n" "${CRON_SCHEDULE}" "${CRON_COMMAND}" "${CRON_MARKER}" >> "${TMP_CRON}"
+          crontab "${TMP_CRON}"
+          rm -f "${TMP_CRON}"
+          echo "Installed Neo4j keepalive cron entry:"
+          crontab -l | grep -F "${CRON_MARKER}"
 
           docker image prune -f
           REMOTE_SCRIPT
