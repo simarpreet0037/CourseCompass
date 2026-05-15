@@ -47,12 +47,13 @@ def get_chat_history(request) -> list:
     return request.session['chat_history']
 
 
-def add_to_chat_history(request, user_message: str, bot_response: str) -> None:
+def add_to_chat_history(request, user_message: str, bot_response: str, bot_meta: dict = None) -> None:
     """Add a message exchange to the session chat history."""
     history = get_chat_history(request)
     history.append({
         'user': user_message,
         'bot': bot_response,
+        'meta': bot_meta or {},
         'timestamp': time.time()
     })
     # Keep only last 50 messages
@@ -98,9 +99,11 @@ def send_message(request):
         }
 
     # Process result (dict or text)
+    bot_meta = {}
     if isinstance(bot_result, dict):
         response_type = bot_result.get("type", "text")
         content = bot_result.get("content", "")
+        bot_meta = bot_result.get("meta", {}) if isinstance(bot_result.get("meta", {}), dict) else {}
         if response_type == "html":
             bot_response = mark_safe(content)
         else:
@@ -109,7 +112,7 @@ def send_message(request):
         bot_response = str(bot_result)
 
     # Save to conversation history
-    add_to_chat_history(request, user_message, str(bot_response))
+    add_to_chat_history(request, user_message, str(bot_response), bot_meta=bot_meta)
 
     context = {
         "user_message": user_message,

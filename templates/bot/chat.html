@@ -5,6 +5,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CourseCompass</title>
+  <link rel="icon" type="image/png" href="{% static 'branding/logo.png' %}" />
+  <link rel="shortcut icon" type="image/png" href="{% static 'branding/logo.png' %}" />
   <script src="https://unpkg.com/htmx.org@1.9.2"></script>
   <script src="https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
@@ -222,9 +224,19 @@
       letter-spacing: -.02em;
     }
     .avatar.bot-av {
-      background: linear-gradient(135deg, var(--amber-dim), var(--violet));
+      background: transparent;
       color: #fff;
+      overflow: hidden;
     }
+
+    .bot-avatar-logo {
+      width: 20px;
+      height: 20px;
+      object-fit: contain;
+      display: block;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.35));
+    }
+
     .avatar.user-av {
       background: var(--s4);
       border: 1px solid var(--border-2);
@@ -394,114 +406,177 @@
       }
     });
 
+    // ── node colour ─────────────────────────────────────────────────────────
+    function nodeColor(ele) {
+      var kind = ele.data("kind");
+      if (kind === "target" || kind === "focus") return "#d97706";
+      if (kind === "source")  return "#059669";
+      if (kind === "next")    return "#0369a1";
+      if (ele.data("recommended")) return "#7c3aed";
+      return "#222236";
+    }
+
+    // ── shared cytoscape style ──────────────────────────────────────────────
+    var CY_STYLE = [
+      {
+        selector: "node",
+        style: {
+          "label": "data(label)",
+          "text-valign": "center",
+          "color": "#f0f0f8",
+          "background-color": nodeColor,
+          "border-width": 1,
+          "border-color": "rgba(255,255,255,.15)",
+          "font-size": 11,
+          "shape": "round-rectangle",
+          "padding": "6px"
+        }
+      },
+      {
+        selector: "edge",
+        style: {
+          "width": 1.5,
+          "line-color": "#3d3d58",
+          "target-arrow-color": "#3d3d58",
+          "target-arrow-shape": "triangle",
+          "curve-style": "bezier"
+        }
+      }
+    ];
+
+    // ── layout post-processors ─────────────────────────────────────────────
+
+    // prereq: target course pinned to bottom, prerequisites above by depth
+    function layoutPrereq(cy) {
+      var anchor = cy.nodes('[kind = "target"]').first();
+      if (!anchor.length || cy.nodes().length < 2) return;
+      var levelById = {};
+      levelById[anchor.id()] = 0;
+      var queue = [anchor];
+      while (queue.length) {
+        var cur = queue.shift();
+        var curLvl = levelById[cur.id()] || 0;
+        cur.incomers("edge").forEach(function(e) {
+          var src = e.source();
+          var nl = curLvl + 1;
+          if (levelById[src.id()] === undefined || nl > levelById[src.id()]) {
+            levelById[src.id()] = nl; queue.push(src);
+          }
+        });
+      }
+      repositionByLevel(cy, levelById, "bottom");
+    }
+
+    // next: source course pinned to top, follow-on courses below
+    function layoutNext(cy) {
+      var anchor = cy.nodes('[kind = "source"]').first();
+      if (!anchor.length || cy.nodes().length < 2) return;
+      var levelById = {};
+      levelById[anchor.id()] = 0;
+      var queue = [anchor];
+      while (queue.length) {
+        var cur = queue.shift();
+        var curLvl = levelById[cur.id()] || 0;
+        cur.outgoers("edge").forEach(function(e) {
+          var tgt = e.target();
+          var nl = curLvl + 1;
+          if (levelById[tgt.id()] === undefined || nl > levelById[tgt.id()]) {
+            levelById[tgt.id()] = nl; queue.push(tgt);
+          }
+        });
+      }
+      repositionByLevel(cy, levelById, "top");
+    }
+
+    // neighborhood: focus in centre, prereqs at top, next courses at bottom
+    function layoutNeighborhood(cy) {
+      var bounds = getBounds(cy);
+      var midY = (bounds.minY + bounds.maxY) / 2;
+      var step = Math.max((bounds.maxY - bounds.minY) / 2, 72);
+      cy.nodes('[side = "prereq"]').positions(function(n) { return { x: n.position("x"), y: bounds.minY }; });
+      cy.nodes('[kind = "focus"]').positions(function(n) { return { x: n.position("x"), y: midY }; });
+      cy.nodes('[side = "next"]').positions(function(n) { return { x: n.position("x"), y: bounds.maxY }; });
+      cy.fit(undefined, 20);
+    }
+
+    // roadmap: courses grouped by academic level, earliest level at top
+    function layoutRoadmap(cy) {
+      var levelGroups = {};
+      cy.nodes().forEach(function(n) {
+        var lvl = n.data("level") || 100;
+        if (!levelGroups[lvl]) levelGroups[lvl] = [];
+        levelGroups[lvl].push(n);
+      });
+      var sortedLevels = Object.keys(levelGroups).map(Number).sort(function(a, b) { return a - b; });
+      var step = 90;
+      sortedLevels.forEach(function(lvl, idx) {
+        var nodes = levelGroups[lvl];
+        var spanW = (nodes.length - 1) * 110;
+        nodes.forEach(function(n, i) {
+          n.position({ x: -spanW / 2 + i * 110, y: idx * step });
+        });
+      });
+      cy.fit(undefined, 20);
+    }
+
+    // ── helpers ─────────────────────────────────────────────────────────────
+    function getBounds(cy) {
+      var minY = Infinity, maxY = -Infinity;
+      cy.nodes().forEach(function(n) {
+        var y = n.position("y");
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      });
+      return { minY: minY, maxY: maxY };
+    }
+
+    function repositionByLevel(cy, levelById, anchor) {
+      var maxLevel = 0;
+      Object.keys(levelById).forEach(function(id) { if (levelById[id] > maxLevel) maxLevel = levelById[id]; });
+      var b = getBounds(cy);
+      var step = Math.max((b.maxY - b.minY) / Math.max(maxLevel, 1), 72);
+      cy.nodes().positions(function(node) {
+        var pos = node.position();
+        var level = levelById[node.id()];
+        if (level === undefined) return { x: pos.x, y: pos.y };
+        // anchor="bottom": level 0 at bottom, level maxLevel at top
+        // anchor="top":    level 0 at top,    level maxLevel at bottom
+        var rankFromTop = anchor === "bottom" ? maxLevel - level : level;
+        return { x: pos.x, y: b.minY + rankFromTop * step };
+      });
+      cy.fit(undefined, 20);
+    }
+
+    // ── main renderer ───────────────────────────────────────────────────────
     document.addEventListener("renderCytoscapeGraph", function() {
-      document.querySelectorAll("#mini-graph").forEach(function(container) {
+      document.querySelectorAll("[data-graph]").forEach(function(container) {
         var rawData = container.dataset.graph;
         if (!rawData) return;
         var graphData;
         try { graphData = JSON.parse(rawData); } catch(e) { return; }
         if (container._cy) container._cy.destroy();
+
+        var graphType = container.dataset.graphType || "prereq";
+
         var cy = cytoscape({
           container: container,
           elements: graphData.elements,
-          style: [
-            {
-              selector: "node",
-              style: {
-                "label": "data(label)",
-                "text-valign": "center",
-                "color": "#f0f0f8",
-                "background-color": function(ele) {
-                  if (ele.data("kind") === "target") return "#d97706";
-                  return ele.data("recommended") ? "#7c3aed" : "#222236";
-                },
-                "border-width": 1,
-                "border-color": "rgba(255,255,255,.15)",
-                "font-size": 11,
-                "shape": "round-rectangle",
-                "padding": "6px"
-              }
-            },
-            {
-              selector: "edge",
-              style: {
-                "width": 1.5,
-                "line-color": "#3d3d58",
-                "target-arrow-color": "#3d3d58",
-                "target-arrow-shape": "triangle",
-                "curve-style": "bezier"
-              }
-            }
-          ]
+          style: CY_STYLE
         });
 
-        var layout = cy.layout({
-          name: "breadthfirst",
-          directed: true,
-          padding: 20,
-          spacingFactor: 1.2
-        });
+        // Roadmap positions are computed purely by level data — no need for breadthfirst.
+        if (graphType === "roadmap") {
+          layoutRoadmap(cy);
+          container._cy = cy;
+          return;
+        }
 
+        var layout = cy.layout({ name: "breadthfirst", directed: true, padding: 20, spacingFactor: 1.2 });
         layout.once("layoutstop", function() {
-          var target = cy.nodes().filter(function(node) {
-            return node.data("kind") === "target";
-          }).first();
-
-          if (!target || cy.nodes().length < 2) {
-            return;
-          }
-
-          // Compute prerequisite depth levels from the target using incoming edges.
-          // Edge direction is prereq -> dependent, so incoming traversal moves upward.
-          var levelById = {};
-          levelById[target.id()] = 0;
-          var queue = [target];
-
-          while (queue.length) {
-            var current = queue.shift();
-            var currentLevel = levelById[current.id()] || 0;
-            current.incomers("edge").forEach(function(edge) {
-              var prereq = edge.source();
-              var nextLevel = currentLevel + 1;
-              if (levelById[prereq.id()] === undefined || nextLevel > levelById[prereq.id()]) {
-                levelById[prereq.id()] = nextLevel;
-                queue.push(prereq);
-              }
-            });
-          }
-
-          var maxLevel = 0;
-          Object.keys(levelById).forEach(function(id) {
-            if (levelById[id] > maxLevel) maxLevel = levelById[id];
-          });
-
-          var minY = Infinity;
-          var maxY = -Infinity;
-          cy.nodes().forEach(function(node) {
-            var y = node.position("y");
-            if (y < minY) minY = y;
-            if (y > maxY) maxY = y;
-          });
-
-          var effectiveLevels = Math.max(maxLevel, 1);
-          var step = Math.max((maxY - minY) / effectiveLevels, 72);
-
-          cy.nodes().positions(function(node) {
-            var pos = node.position();
-            var level = levelById[node.id()];
-            if (level === undefined) {
-              return { x: pos.x, y: pos.y };
-            }
-            var rankFromTop = maxLevel - level;
-            return {
-              x: pos.x,
-              y: minY + rankFromTop * step
-            };
-          });
-
-          cy.fit(undefined, 20);
+          if      (graphType === "next")         layoutNext(cy);
+          else if (graphType === "neighborhood") layoutNeighborhood(cy);
+          else                                   layoutPrereq(cy);
         });
-
         layout.run();
         container._cy = cy;
       });

@@ -1,9 +1,13 @@
-﻿<div class="chat-message user">
+﻿{% load static %}
+
+<div class="chat-message user">
   <div class="avatar user-av">You</div>
   <div class="chat-bubble user">{{ user_message }}</div>
 </div>
 
 <div class="chat-message bot">
-  <div class="avatar bot-av">CC</div>
+  <div class="avatar bot-av">
+    <img src="{% static 'branding/logo.png' %}" alt="CourseCompass" class="bot-avatar-logo" />
+  </div>
   <div class="chat-bubble bot">{{ bot_response|safe }}</div>
 </div>

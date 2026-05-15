@@ -135,6 +135,66 @@ def cypher_next_after(code: str) -> List[Dict]:
     return run_query(query, {"code": code})
 
 
+def cypher_neighborhood(code: str) -> Dict:
+    """
+    Get a course's direct prerequisites and direct next courses in one call.
+    Used to render the neighbourhood graph for course_info queries.
+    """
+    code = code.replace(' ', '').strip().upper()
+    try:
+        driver = get_driver()
+        if driver is None:
+            return {"focus": {}, "prereqs": [], "next_courses": []}
+        with driver.session() as session:
+            result = session.run("""
+                MATCH (c:Course {code: $code})
+                OPTIONAL MATCH (c)-[:REQUIRES]->(:PrerequisiteGroup)-[:HAS]->(prereq:Course)
+                OPTIONAL MATCH (next:Course)-[:REQUIRES]->(:PrerequisiteGroup)-[:HAS]->(c)
+                RETURN
+                    c.code        AS focus_code,
+                    c.title       AS focus_title,
+                    c.description AS focus_desc,
+                    c.credits     AS focus_credits,
+                    c.level       AS focus_level,
+                    collect(DISTINCT prereq.code) AS prereq_codes,
+                    collect(DISTINCT next.code)   AS next_codes
+            """, code=code).single()
+
+            if not result:
+                return {"focus": {}, "prereqs": [], "next_courses": []}
+
+            return {
+                "focus": {
+                    "code": result["focus_code"],
+                    "title": result["focus_title"],
+                    "description": result["focus_desc"],
+                    "credits": result["focus_credits"],
+                    "level": result["focus_level"],
+                },
+                "prereqs": [c for c in result["prereq_codes"] if c],
+                "next_courses": [c for c in result["next_codes"] if c],
+            }
+    except Exception as e:
+        logger.error(f"Neighbourhood query error: {e}")
+        return {"focus": {}, "prereqs": [], "next_courses": []}
+
+
+def cypher_courses_by_level(limit: int = 60) -> List[Dict]:
+    """
+    Return all courses ordered by academic level, plus direct prerequisite edges
+    between them.  Used to render the degree-roadmap graph for advising queries.
+    """
+    query = """
+    MATCH (c:Course)
+    OPTIONAL MATCH (c)-[:REQUIRES]->(:PrerequisiteGroup)-[:HAS]->(prereq:Course)
+    WITH c, collect(DISTINCT prereq.code) AS prereq_codes
+    RETURN c.code AS code, c.title AS title, c.level AS level, prereq_codes
+    ORDER BY c.level, c.code
+    LIMIT $limit
+    """
+    return run_query(query, {"limit": limit})
+
+
 def summarize_graph_context(limit: int = 50) -> str:
     """
     Collects a brief textual overview of available courses and their relationships.
