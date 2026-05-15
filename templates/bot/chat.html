@@ -404,7 +404,6 @@
         var cy = cytoscape({
           container: container,
           elements: graphData.elements,
-          layout: { name: "breadthfirst", directed: true, padding: 20, spacingFactor: 1.2 },
           style: [
             {
               selector: "node",
@@ -435,6 +434,75 @@
             }
           ]
         });
+
+        var layout = cy.layout({
+          name: "breadthfirst",
+          directed: true,
+          padding: 20,
+          spacingFactor: 1.2
+        });
+
+        layout.once("layoutstop", function() {
+          var target = cy.nodes().filter(function(node) {
+            return node.data("kind") === "target";
+          }).first();
+
+          if (!target || cy.nodes().length < 2) {
+            return;
+          }
+
+          // Compute prerequisite depth levels from the target using incoming edges.
+          // Edge direction is prereq -> dependent, so incoming traversal moves upward.
+          var levelById = {};
+          levelById[target.id()] = 0;
+          var queue = [target];
+
+          while (queue.length) {
+            var current = queue.shift();
+            var currentLevel = levelById[current.id()] || 0;
+            current.incomers("edge").forEach(function(edge) {
+              var prereq = edge.source();
+              var nextLevel = currentLevel + 1;
+              if (levelById[prereq.id()] === undefined || nextLevel > levelById[prereq.id()]) {
+                levelById[prereq.id()] = nextLevel;
+                queue.push(prereq);
+              }
+            });
+          }
+
+          var maxLevel = 0;
+          Object.keys(levelById).forEach(function(id) {
+            if (levelById[id] > maxLevel) maxLevel = levelById[id];
+          });
+
+          var minY = Infinity;
+          var maxY = -Infinity;
+          cy.nodes().forEach(function(node) {
+            var y = node.position("y");
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+          });
+
+          var effectiveLevels = Math.max(maxLevel, 1);
+          var step = Math.max((maxY - minY) / effectiveLevels, 72);
+
+          cy.nodes().positions(function(node) {
+            var pos = node.position();
+            var level = levelById[node.id()];
+            if (level === undefined) {
+              return { x: pos.x, y: pos.y };
+            }
+            var rankFromTop = maxLevel - level;
+            return {
+              x: pos.x,
+              y: minY + rankFromTop * step
+            };
+          });
+
+          cy.fit(undefined, 20);
+        });
+
+        layout.run();
         container._cy = cy;
       });
     });

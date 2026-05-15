@@ -137,7 +137,8 @@ def advisor_response(question: str, session_history: Optional[List[Dict[str, str
 
     # Graph-driven intents (HTML or enhanced text)
     if intent in {"prereq_query", "all_prerequisites"}:
-        depth = 1 if intent == "prereq_query" else 5
+        # Use maximum safe traversal depth so indirect prerequisite chains are visible.
+        depth = 8
         html = respond_prereq_query(code, question, depth=depth)
         return {"type": "html", "content": html}
 

@@ -20,6 +20,7 @@ def render_prereq_graph(data: dict) -> str:
     """Render prerequisite graph as HTML with Cytoscape data."""
     target = data["target"]
     prereqs = data["prereqs"]
+    graph_edges = data.get("graph_edges", [])
 
     # Build Cytoscape-compatible node and edge lists
     nodes = [{
@@ -43,15 +44,27 @@ def render_prereq_graph(data: dict) -> str:
                 }
             })
 
-        # Link prerequisite -> target
-        edges.append({
-            "data": {
-                "id": f"{p['code']}->{target['code']}",
-                "source": p["code"],
-                "target": target["code"],
-                "type": p.get("type", "CUSTOM")
-            }
-        })
+    if graph_edges:
+        for e in graph_edges:
+            edges.append({
+                "data": {
+                    "id": f"{e['source']}->{e['target']}",
+                    "source": e["source"],
+                    "target": e["target"],
+                    "type": e.get("type", "CUSTOM"),
+                }
+            })
+    else:
+        # Backward-compatible fallback if only flat prerequisite data is present.
+        for p in prereqs:
+            edges.append({
+                "data": {
+                    "id": f"{p['code']}->{target['code']}",
+                    "source": p["code"],
+                    "target": target["code"],
+                    "type": p.get("type", "CUSTOM")
+                }
+            })
 
     # Cytoscape expects { elements: { nodes: [...], edges: [...] } }
     graph_data = json.dumps({

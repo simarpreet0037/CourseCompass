@@ -51,18 +51,31 @@ def cypher_prereqs_full(code: str, depth: int = 3) -> Dict:
 
     # Neo4j does not allow parameters in variable-length relationship bounds.
     query = f"""
-    MATCH p=(target:Course {{code:$code}})-[:REQUIRES|HAS*2..{max_rel_len}]->(pr:Course)
-    WITH DISTINCT target, pr, nodes(p)[1] AS first_group
+    MATCH (target:Course {{code:$code}})
+    MATCH p=(target)-[:REQUIRES|HAS*2..{max_rel_len}]->(pr:Course)
+    WITH DISTINCT target, p, pr
+    UNWIND range(0, size(nodes(p)) - 3, 2) AS idx
+    WITH DISTINCT
+        target,
+        pr,
+        nodes(p)[idx]     AS dependent,
+        nodes(p)[idx + 1] AS grp,
+        nodes(p)[idx + 2] AS prereq
     RETURN DISTINCT
-        target.code         AS target_code,
-        target.title        AS target_title,
-        target.description  AS target_desc,
-        pr.code             AS prereq_code,
-        pr.title            AS prereq_title,
-        pr.description      AS prereq_desc,
-        first_group.type    AS group_type,
-        first_group.recommended AS recommended
-    ORDER BY group_type, prereq_code
+        target.code            AS target_code,
+        target.title           AS target_title,
+        target.description     AS target_desc,
+        pr.code                AS path_prereq_code,
+        pr.title               AS path_prereq_title,
+        pr.description         AS path_prereq_desc,
+        prereq.code            AS edge_prereq_code,
+        prereq.title           AS edge_prereq_title,
+        prereq.description     AS edge_prereq_desc,
+        dependent.code         AS edge_dependent_code,
+        dependent.title        AS edge_dependent_title,
+        grp.type               AS group_type,
+        grp.recommended        AS recommended
+    ORDER BY edge_prereq_code, edge_dependent_code
     """
 
     res = run_query(query, {"code": code, "max_rel_len": max_rel_len})
@@ -76,18 +89,39 @@ def cypher_prereqs_full(code: str, depth: int = 3) -> Dict:
         "description": res[0]["target_desc"],
     }
 
-    prereqs = [
-        {
-            "code": r["prereq_code"],
-            "title": r.get("prereq_title", ""),
-            "description": r.get("prereq_desc", ""),
-            "type": r.get("group_type") or "CUSTOM",
-            "recommended": bool(r.get("recommended")),
-        }
-        for r in res if r.get("prereq_code")
-    ]
+    prereq_map = {}
+    edge_map = {}
 
-    return {"target": target, "prereqs": prereqs}
+    for r in res:
+        path_prereq_code = r.get("path_prereq_code")
+        if path_prereq_code and path_prereq_code not in prereq_map:
+            prereq_map[path_prereq_code] = {
+                "code": path_prereq_code,
+                "title": r.get("path_prereq_title", ""),
+                "description": r.get("path_prereq_desc", ""),
+                "type": r.get("group_type") or "CUSTOM",
+                "recommended": bool(r.get("recommended")),
+            }
+
+        edge_prereq_code = r.get("edge_prereq_code")
+        edge_dependent_code = r.get("edge_dependent_code")
+        if edge_prereq_code and edge_dependent_code:
+            edge_key = (edge_prereq_code, edge_dependent_code)
+            if edge_key not in edge_map:
+                edge_map[edge_key] = {
+                    "source": edge_prereq_code,
+                    "target": edge_dependent_code,
+                    "type": r.get("group_type") or "CUSTOM",
+                    "recommended": bool(r.get("recommended")),
+                }
+
+    prereqs = sorted(prereq_map.values(), key=lambda item: item["code"])
+    graph_edges = sorted(
+        edge_map.values(),
+        key=lambda item: (item["target"], item["source"]),
+    )
+
+    return {"target": target, "prereqs": prereqs, "graph_edges": graph_edges}
 
 
 def cypher_next_after(code: str) -> List[Dict]:
