@@ -364,6 +364,12 @@ All `print()` statements in tests replaced with `logger.info()`.
 
 ### Backward Compatibility
 
-- Old `settings.py` still works (imports from new structure)
-- Old `agent_old.py` preserved for reference
-- Old `views_old.py` preserved in courses app
+- Settings are loaded via the `CourseCompass/settings/` package (`__init__.py` routes to `dev.py` or `prod.py`)
+
+### Legacy File Cleanup
+
+The following legacy files have been removed as they were fully superseded:
+
+- `bot/agent_old.py` — replaced by modular `bot/agent.py`, `bot/config.py`, `bot/prompts.py`, `bot/queries.py`, and `bot/intents/`
+- `courses/views_old.py` — replaced by refactored `courses/views.py` and `courses/services.py`
+- `CourseCompass/settings.py` — redundant; the `CourseCompass/settings/` package takes precedence
